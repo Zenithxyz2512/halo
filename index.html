@@ -23,6 +23,8 @@
     --radius: 16px;
     --shadow: 0 1px 2px rgba(16,24,20,.04), 0 8px 24px rgba(16,24,20,.06);
   }
+  /* Tema gelap: dari preferensi sistem, dan dari atribut data-theme kalau
+     halaman ini di-host di viewer yang punya tombol ganti tema. */
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0e1211;
@@ -36,6 +38,30 @@
       --accent-text: #6ee7a0;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1211;
+    --surface: #171c1a;
+    --surface-2: #1f2523;
+    --text: #eef2ef;
+    --muted: #9aa4a0;
+    --line: #2a312e;
+    --accent: #22c55e;
+    --accent-soft: #14301f;
+    --accent-text: #6ee7a0;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f8f6;
+    --surface: #ffffff;
+    --surface-2: #f1f3ef;
+    --text: #14181a;
+    --muted: #6b7280;
+    --line: #e3e6e0;
+    --accent: #16a34a;
+    --accent-soft: #e7f6ec;
+    --accent-text: #0f7a37;
+    --shadow: 0 1px 2px rgba(16,24,20,.04), 0 8px 24px rgba(16,24,20,.06);
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
