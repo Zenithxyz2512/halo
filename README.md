@@ -20,7 +20,30 @@ tidak ada backend — semua data disimpan di `localStorage` browser.
 10. Hambatan (boleh pilih banyak / dilewati)
 11. Layar "menyusun rencana"
 12. **Halaman rencana** — target kalori, makro, BMI, estimasi tanggal target
-13. **Beranda** — sisa kalori hari ini, progres makro, catat makanan
+13. **Beranda** — sisa kalori hari ini, progres makro, scan foto, catat makanan
+
+## Scan makanan dari foto
+
+Tombol "Scan makanan dari foto" mengirim foto ke model Claude dan mengembalikan
+perkiraan kalori serta makro, yang bisa dikoreksi sebelum disimpan.
+
+Butuh kunci API Anthropic milikmu sendiri (dari console.anthropic.com), diisi
+lewat tombol gembok di beranda. Kunci disimpan di `localStorage` browser itu
+saja dan dikirim langsung ke `api.anthropic.com` — tidak ada server perantara.
+Karena kunci ada di browser, jangan pakai fitur ini di perangkat bersama.
+
+Foto diperkecil ke sisi terpanjang 1024 px dan dikirim sebagai JPEG untuk
+menghemat token gambar. Model: `claude-opus-5`, dengan `output_config.format`
+JSON Schema supaya jawabannya selalu terstruktur.
+
+**Fitur ini hanya jalan kalau halaman di-serve lewat http/https.** Dari
+`file://` atau di dalam artifact claude.ai, browser memblokir permintaan
+keluar dan appnya akan menampilkan pesan yang menjelaskan itu. Untuk mencoba
+lokal:
+
+```
+python3 -m http.server 8000    # lalu buka http://localhost:8000
+```
 
 ## Cara hitung
 
@@ -42,6 +65,7 @@ Angka-angka ini estimasi, bukan nasihat medis.
 | --- | --- |
 | `halo.profile.v1` | Jawaban onboarding + rencana |
 | `halo.log.v1` | Catatan makanan per tanggal |
+| `halo.apikey.v1` | Kunci API Anthropic untuk scan foto |
 
 "Atur ulang profil" di beranda menghapus profil dan mengulang onboarding
 (catatan makanan tetap tersimpan).

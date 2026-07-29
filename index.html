@@ -420,6 +420,56 @@
   .chip:active { transform: scale(.96); }
 
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* Tanpa ini, lebar min-content input angka membuat grid melebihi layar. */
+  .grid2 > * { min-width: 0; }
+  input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* ---------- Scan ---------- */
+  .scan-preview {
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    background: var(--surface-2);
+  }
+  .scan-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 6px 0 14px;
+  }
+  .spinner {
+    width: 18px; height: 18px; flex: 0 0 18px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+  }
+  .alert {
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin-bottom: 14px;
+  }
+  .alert strong { color: var(--danger); }
+  .confidence {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+  .confidence.tinggi { background: var(--accent-soft); color: var(--accent-text); }
 
   dialog {
     border: 0;
@@ -453,6 +503,34 @@
     <button class="btn" id="nextBtn">Lanjut</button>
   </footer>
 </div>
+
+<input type="file" id="photoInput" accept="image/*" capture="environment" class="sr">
+
+<dialog id="scanDialog">
+  <h3>Scan makanan</h3>
+  <div id="scanBody"></div>
+</dialog>
+
+<dialog id="keyDialog">
+  <h3>Kunci API Anthropic</h3>
+  <form method="dialog" id="keyForm">
+    <p class="note" style="margin:0 0 14px">
+      Scan foto memakai model Claude, jadi butuh kunci API milikmu sendiri dari
+      <strong>console.anthropic.com</strong>. Kunci disimpan di browser ini saja
+      (<code>localStorage</code>) dan dikirim langsung ke api.anthropic.com — tidak
+      lewat server lain. Jangan pakai di perangkat yang dipakai bersama.
+    </p>
+    <div class="field">
+      <label for="apiKey">API key</label>
+      <div class="inputwrap">
+        <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <button class="btn" value="save">Simpan</button>
+    <button class="btn ghost" value="clear" formnovalidate>Hapus kunci</button>
+    <button class="btn ghost" value="cancel" formnovalidate>Batal</button>
+  </form>
+</dialog>
 
 <dialog id="logDialog">
   <h3>Catat makanan</h3>
@@ -961,9 +1039,14 @@
             <div class="hi">Halo, ${data.name || "kamu"} 👋</div>
             <div class="date">${new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}</div>
           </div>
-          <button class="iconbtn" data-action="plan" aria-label="Lihat rencana">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M9 19V9M14 19v-7M19 19V7"/></svg>
-          </button>
+          <div style="display:flex;gap:8px">
+            <button class="iconbtn" data-action="apikey" aria-label="Kunci API">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4M18 5l2 2M15 8l2 2"/></svg>
+            </button>
+            <button class="iconbtn" data-action="plan" aria-label="Lihat rencana">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M9 19V9M14 19v-7M19 19V7"/></svg>
+            </button>
+          </div>
         </div>
 
         <div class="card">
@@ -1004,7 +1087,8 @@
             </div>`).join("") : `<div class="empty">Belum ada catatan hari ini.</div>`}
         </div>
 
-        <button class="btn" data-action="add" style="margin-top:6px">+ Catat makanan</button>
+        <button class="btn" data-action="scan" style="margin-top:6px">📷 Scan makanan dari foto</button>
+        <button class="btn ghost" data-action="add" style="padding:14px">+ Catat manual</button>
         <button class="btn ghost" data-action="restart">Atur ulang profil</button>
         <div style="height:24px"></div>
       </div>`;
@@ -1162,6 +1246,8 @@
       return render();
     }
     if (action === "add") return openLogDialog();
+    if (action === "scan") return startScan();
+    if (action === "apikey") return openKeyDialog();
 
     const preset = e.target.closest("[data-preset]");
     if (preset) {
@@ -1205,6 +1291,247 @@
       carbs: Number(fd.get("carbs")) || 0,
       fat: Number(fd.get("fat")) || 0,
     });
+  });
+
+  // ---------------------------------------------------------------- scan foto
+  // Analisis foto memakai Claude langsung dari browser dengan kunci API milik
+  // pengguna. Tidak ada server perantara, jadi kunci tidak pernah keluar dari
+  // perangkat kecuali ke api.anthropic.com.
+  const KEY_STORE = "halo.apikey.v1";
+  const scanDialog = $("#scanDialog");
+  const scanBody = $("#scanBody");
+  const keyDialog = $("#keyDialog");
+  const keyForm = $("#keyForm");
+  const photoInput = $("#photoInput");
+
+  let scanResult = null;
+
+  const getKey = () => {
+    try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; }
+  };
+
+  function openKeyDialog() {
+    $("#apiKey").value = getKey();
+    keyDialog.showModal();
+  }
+
+  keyDialog.addEventListener("close", () => {
+    if (keyDialog.returnValue === "clear") {
+      try { localStorage.removeItem(KEY_STORE); } catch { /* mode privat */ }
+      return;
+    }
+    if (keyDialog.returnValue !== "save") return;
+    const key = $("#apiKey").value.trim();
+    try {
+      if (key) localStorage.setItem(KEY_STORE, key);
+      else localStorage.removeItem(KEY_STORE);
+    } catch { /* mode privat */ }
+  });
+
+  function startScan() {
+    if (!getKey()) {
+      openKeyDialog();
+      return;
+    }
+    photoInput.value = "";
+    photoInput.click();
+  }
+
+  photoInput.addEventListener("change", async () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    scanResult = null;
+    try {
+      const { dataUrl, base64 } = await shrinkToJpeg(file);
+      showScan(`
+        <img class="scan-preview" src="${dataUrl}" alt="Foto makanan">
+        <div class="scan-status"><span class="spinner"></span> Menganalisis foto…</div>`);
+      const food = await analyzeFood(base64);
+      scanResult = { ...food, dataUrl };
+      renderScanResult();
+    } catch (err) {
+      showScan(`
+        <div class="alert"><strong>Gagal.</strong> ${escapeHtml(err.message)}</div>
+        <button class="btn" data-action="retry-scan">Coba foto lain</button>
+        <button class="btn ghost" data-action="apikey">Ubah kunci API</button>`);
+    }
+  });
+
+  function showScan(html) {
+    scanBody.innerHTML = html;
+    if (!scanDialog.open) scanDialog.showModal();
+  }
+
+  // Perkecil dulu: hemat token gambar dan mempercepat unggahan.
+  function shrinkToJpeg(file, maxEdge = 1024) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        resolve({ dataUrl, base64: dataUrl.slice(dataUrl.indexOf(",") + 1) });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("File itu tidak terbaca sebagai gambar."));
+      };
+      img.src = url;
+    });
+  }
+
+  const FOOD_SCHEMA = {
+    type: "object",
+    properties: {
+      terdeteksi: { type: "boolean", description: "true jika foto berisi makanan atau minuman" },
+      nama: { type: "string", description: "Nama makanan dalam bahasa Indonesia" },
+      porsi: { type: "string", description: "Perkiraan porsi yang terlihat, misal '1 piring' atau '200 g'" },
+      kalori: { type: "integer", description: "Total kalori porsi yang terlihat, kkal" },
+      protein: { type: "integer", description: "Protein dalam gram" },
+      karbo: { type: "integer", description: "Karbohidrat dalam gram" },
+      lemak: { type: "integer", description: "Lemak dalam gram" },
+      keyakinan: { type: "string", enum: ["tinggi", "sedang", "rendah"] },
+      catatan: { type: "string", description: "Satu kalimat singkat: asumsi porsi atau bahan yang tidak terlihat jelas" },
+    },
+    required: ["terdeteksi", "nama", "porsi", "kalori", "protein", "karbo", "lemak", "keyakinan", "catatan"],
+    additionalProperties: false,
+  };
+
+  const SCAN_PROMPT = `Kamu ahli gizi yang memperkirakan kandungan nutrisi dari foto makanan Indonesia.
+
+Perkirakan untuk porsi yang terlihat di foto, bukan porsi standar. Perhatikan
+ukuran piring dan benda pembanding di sekitarnya. Sertakan minyak, santan, saus,
+dan gula yang wajar untuk masakan itu meski tidak terlihat langsung.
+
+Kalau foto tidak berisi makanan atau minuman, set terdeteksi=false dan isi angka
+dengan 0.
+
+Jawab dalam bahasa Indonesia.`;
+
+  async function analyzeFood(base64) {
+    let res;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": getKey(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-opus-5",
+          max_tokens: 4000,
+          output_config: {
+            effort: "low",
+            format: { type: "json_schema", schema: FOOD_SCHEMA },
+          },
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+              { type: "text", text: SCAN_PROMPT },
+            ],
+          }],
+        }),
+      });
+    } catch {
+      throw new Error(
+        "Tidak bisa menghubungi api.anthropic.com. Fitur ini butuh halaman yang " +
+        "dibuka lewat http/https — di dalam artifact claude.ai atau file:// akan " +
+        "diblokir browser."
+      );
+    }
+
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      const msg = detail?.error?.message || `HTTP ${res.status}`;
+      if (res.status === 401) throw new Error("Kunci API ditolak. Cek lagi kuncinya.");
+      if (res.status === 429) throw new Error("Kena batas permintaan. Tunggu sebentar lalu ulangi.");
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+    if (data.stop_reason === "refusal") throw new Error("Permintaan ditolak model.");
+    if (data.stop_reason === "max_tokens") throw new Error("Jawaban model terpotong. Coba lagi.");
+
+    const text = (data.content || []).find((b) => b.type === "text")?.text;
+    if (!text) throw new Error("Model tidak mengembalikan hasil.");
+
+    let food;
+    try {
+      food = JSON.parse(text);
+    } catch {
+      throw new Error("Jawaban model bukan JSON yang valid.");
+    }
+    if (!food.terdeteksi) throw new Error("Tidak ada makanan yang terlihat di foto itu.");
+    return food;
+  }
+
+  function renderScanResult() {
+    const f = scanResult;
+    showScan(`
+      <img class="scan-preview" src="${f.dataUrl}" alt="Foto makanan">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span class="confidence ${escapeHtml(f.keyakinan)}">Keyakinan ${escapeHtml(f.keyakinan)}</span>
+        <span class="note">${escapeHtml(f.porsi)}</span>
+      </div>
+      <p class="note" style="margin:8px 0 16px">${escapeHtml(f.catatan)}</p>
+
+      <div class="field">
+        <label for="s-name">Nama</label>
+        <div class="inputwrap"><input id="s-name" type="text" value="${escapeHtml(f.nama)}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="s-kcal">Kalori</label>
+          <div class="inputwrap"><input id="s-kcal" type="number" inputmode="numeric" value="${Number(f.kalori) || 0}"><span class="unit">kkal</span></div>
+        </div>
+        <div class="field">
+          <label for="s-protein">Protein</label>
+          <div class="inputwrap"><input id="s-protein" type="number" inputmode="numeric" value="${Number(f.protein) || 0}"><span class="unit">g</span></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="s-carbs">Karbo</label>
+          <div class="inputwrap"><input id="s-carbs" type="number" inputmode="numeric" value="${Number(f.karbo) || 0}"><span class="unit">g</span></div>
+        </div>
+        <div class="field">
+          <label for="s-fat">Lemak</label>
+          <div class="inputwrap"><input id="s-fat" type="number" inputmode="numeric" value="${Number(f.lemak) || 0}"><span class="unit">g</span></div>
+        </div>
+      </div>
+      <p class="note" style="margin:0 0 14px">Angkanya perkiraan — silakan dikoreksi sebelum disimpan.</p>
+      <button class="btn" data-action="save-scan">Simpan ke catatan</button>
+      <button class="btn ghost" data-action="retry-scan">Foto ulang</button>`);
+  }
+
+  function saveScanResult() {
+    const name = $("#s-name").value.trim();
+    const kcal = Number($("#s-kcal").value);
+    if (!name || !Number.isFinite(kcal)) return;
+    addLog({
+      name,
+      kcal,
+      protein: Number($("#s-protein").value) || 0,
+      carbs: Number($("#s-carbs").value) || 0,
+      fat: Number($("#s-fat").value) || 0,
+    });
+    scanResult = null;
+    scanDialog.close();
+  }
+
+  scanBody.addEventListener("click", (e) => {
+    const action = e.target.closest("[data-action]")?.dataset.action;
+    if (action === "retry-scan") return startScan();
+    if (action === "save-scan") return saveScanResult();
+    if (action === "apikey") return openKeyDialog();
   });
 
   // ---------------------------------------------------------------- boot
