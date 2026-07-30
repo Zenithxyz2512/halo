@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#16a34a">
+<title>Halo — Asisten Gizi Pribadi</title>
+<style>
+  :root {
+    --bg: #f7f8f6;
+    --surface: #ffffff;
+    --surface-2: #f1f3ef;
+    --text: #14181a;
+    --muted: #6b7280;
+    --line: #e3e6e0;
+    --accent: #16a34a;
+    --accent-soft: #e7f6ec;
+    --accent-text: #0f7a37;
+    --danger: #dc2626;
+    --carb: #f59e0b;
+    --protein: #3b82f6;
+    --fat: #a855f7;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(16,24,20,.04), 0 8px 24px rgba(16,24,20,.06);
+  }
+  /* Tema gelap: dari preferensi sistem, dan dari atribut data-theme kalau
+     halaman ini di-host di viewer yang punya tombol ganti tema. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1211;
+      --surface: #171c1a;
+      --surface-2: #1f2523;
+      --text: #eef2ef;
+      --muted: #9aa4a0;
+      --line: #2a312e;
+      --accent: #22c55e;
+      --accent-soft: #14301f;
+      --accent-text: #6ee7a0;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1211;
+    --surface: #171c1a;
+    --surface-2: #1f2523;
+    --text: #eef2ef;
+    --muted: #9aa4a0;
+    --line: #2a312e;
+    --accent: #22c55e;
+    --accent-soft: #14301f;
+    --accent-text: #6ee7a0;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f8f6;
+    --surface: #ffffff;
+    --surface-2: #f1f3ef;
+    --text: #14181a;
+    --muted: #6b7280;
+    --line: #e3e6e0;
+    --accent: #16a34a;
+    --accent-soft: #e7f6ec;
+    --accent-text: #0f7a37;
+    --shadow: 0 1px 2px rgba(16,24,20,.04), 0 8px 24px rgba(16,24,20,.06);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    position: relative;
+  }
+
+  /* ---------- Header / progress ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: max(14px, env(safe-area-inset-top)) 20px 10px;
+  }
+  .topbar[hidden] { display: none; }
+  .iconbtn {
+    width: 36px; height: 36px;
+    flex: 0 0 36px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  .iconbtn:active { transform: scale(.92); }
+  .iconbtn:disabled { opacity: 0; pointer-events: none; }
+  .progress {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--line);
+    overflow: hidden;
+  }
+  .progress > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width .35s cubic-bezier(.4,0,.2,1);
+  }
+  .stepcount {
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+    text-align: right;
+  }
+
+  /* ---------- Screen ---------- */
+  main {
+    flex: 1;
+    padding: 18px 20px 8px;
+    overflow-y: auto;
+  }
+  .screen { animation: slidein .32s cubic-bezier(.4,0,.2,1); }
+  .screen.back { animation-name: slideback; }
+  @keyframes slidein  { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+  @keyframes slideback { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .screen, .screen.back { animation: none; }
+    .progress > i { transition: none; }
+  }
+
+  h1 {
+    font-size: 27px;
+    line-height: 1.22;
+    letter-spacing: -.02em;
+    margin: 6px 0 8px;
+    font-weight: 700;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 15px;
+    margin: 0 0 22px;
+  }
+
+  /* ---------- Option cards ---------- */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    padding: 16px;
+    background: var(--surface);
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: border-color .15s ease, transform .12s ease, background .15s ease;
+  }
+  .opt:active { transform: scale(.985); }
+  .opt[aria-checked="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .opt .emoji { font-size: 22px; line-height: 1; }
+  .opt .label { display: block; font-weight: 600; }
+  .opt .desc { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .opt .body { display: block; flex: 1; min-width: 0; }
+  .opt .tick {
+    width: 22px; height: 22px; flex: 0 0 22px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    display: grid; place-items: center;
+  }
+  .opt[aria-checked="true"] .tick {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+  .opt .tick svg { opacity: 0; width: 12px; height: 12px; }
+  .opt[aria-checked="true"] .tick svg { opacity: 1; }
+
+  /* ---------- Fields ---------- */
+  .field { margin-bottom: 20px; }
+  .field > label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .inputwrap {
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0 16px;
+    transition: border-color .15s ease;
+  }
+  .inputwrap:focus-within { border-color: var(--accent); }
+  .inputwrap input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 600;
+    padding: 16px 0;
+    outline: none;
+  }
+  .inputwrap .unit { color: var(--muted); font-weight: 600; font-size: 15px; }
+  input[type="range"] {
+    width: 100%;
+    margin: 14px 0 0;
+    accent-color: var(--accent);
+  }
+  .bignum {
+    text-align: center;
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .bignum small { font-size: 18px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+
+  .error {
+    color: var(--danger);
+    font-size: 13.5px;
+    margin: -10px 0 14px;
+    min-height: 0;
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    padding: 12px 20px max(18px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    position: sticky;
+    bottom: 0;
+  }
+  footer[hidden] { display: none; }
+  .btn {
+    width: 100%;
+    border: 0;
+    border-radius: 999px;
+    padding: 17px 20px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 16.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .12s ease, opacity .15s ease;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px;
+  }
+
+  /* ---------- Loading ---------- */
+  .loading { text-align: center; padding: 40px 0 20px; }
+  .ring {
+    width: 96px; height: 96px;
+    margin: 0 auto 26px;
+    border-radius: 50%;
+    border: 8px solid var(--line);
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .checklist { list-style: none; padding: 0; margin: 26px 0 0; text-align: left; }
+  .checklist li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0;
+    color: var(--muted);
+    transition: color .3s ease;
+  }
+  .checklist li.done { color: var(--text); }
+  .checklist li .dot {
+    width: 20px; height: 20px; flex: 0 0 20px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    display: grid; place-items: center;
+    color: #fff;
+  }
+  .checklist li.done .dot { background: var(--accent); border-color: var(--accent); }
+  .checklist li .dot svg { width: 11px; height: 11px; opacity: 0; }
+  .checklist li.done .dot svg { opacity: 1; }
+
+  /* ---------- Plan / cards ---------- */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .kcal {
+    text-align: center;
+    padding: 26px 18px;
+  }
+  .kcal .num {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kcal .cap { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .macro {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .macro .g { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .macro .n { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .macro .bar { height: 4px; border-radius: 999px; margin-top: 9px; }
+  .rows { display: flex; flex-direction: column; gap: 2px; }
+  .row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 15px;
+  }
+  .row:last-child { border-bottom: 0; }
+  .row .k { color: var(--muted); }
+  .row .v { font-weight: 600; text-align: right; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+  .sectitle {
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .05em;
+    margin: 22px 0 10px;
+  }
+  .note { font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+  /* ---------- Home ---------- */
+  .home-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .home-head .hi { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .home-head .date { color: var(--muted); font-size: 14px; }
+  .donut { display: grid; place-items: center; margin: 4px 0 14px; position: relative; }
+  .donut svg { transform: rotate(-90deg); }
+  .donut .center {
+    position: absolute; text-align: center;
+  }
+  .donut .center .big { font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .donut .center .lbl { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .mbar { margin-top: 12px; }
+  .mbar .top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .mbar .top .r { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mbar .track { height: 7px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .mbar .track > i { display: block; height: 100%; border-radius: 999px; transition: width .4s ease; }
+
+  .logitem {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .logitem:last-child { border-bottom: 0; }
+  .logitem .body { flex: 1; min-width: 0; }
+  .logitem .nm { font-weight: 600; font-size: 15px; }
+  .logitem .mt { font-size: 12.5px; color: var(--muted); }
+  .logitem .kc { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .logitem .del {
+    border: 0; background: transparent; color: var(--muted);
+    cursor: pointer; padding: 6px; border-radius: 8px; font-size: 18px; line-height: 1;
+  }
+  .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 22px 0; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 8px 13px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .chip:active { transform: scale(.96); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* Tanpa ini, lebar min-content input angka membuat grid melebihi layar. */
+  .grid2 > * { min-width: 0; }
+  input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* ---------- Scan ---------- */
+  .scan-preview {
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    background: var(--surface-2);
+  }
+  .scan-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 6px 0 14px;
+  }
+  .spinner {
+    width: 18px; height: 18px; flex: 0 0 18px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+  }
+  .alert {
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin-bottom: 14px;
+  }
+  .alert strong { color: var(--danger); }
+  .confidence {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+  .confidence.tinggi { background: var(--accent-soft); color: var(--accent-text); }
+
+  dialog {
+    border: 0;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    background: var(--surface);
+    color: var(--text);
+    width: 100%;
+    max-width: 480px;
+    margin: auto auto 0;
+    box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h3 { margin: 0 0 14px; font-size: 18px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar" id="topbar">
+    <button class="iconbtn" id="backBtn" aria-label="Kembali">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="progress"><i id="progressBar"></i></div>
+    <div class="stepcount" id="stepCount"></div>
+  </div>
+
+  <main id="main" aria-live="polite"></main>
+
+  <footer id="footer">
+    <button class="btn" id="nextBtn">Lanjut</button>
+  </footer>
+</div>
+
+<input type="file" id="photoInput" accept="image/*" capture="environment" class="sr">
+
+<dialog id="scanDialog">
+  <h3>Scan makanan</h3>
+  <div id="scanBody"></div>
+</dialog>
+
+<dialog id="keyDialog">
+  <h3>Kunci API Anthropic</h3>
+  <form method="dialog" id="keyForm">
+    <p class="note" style="margin:0 0 14px">
+      Scan foto memakai model Claude, jadi butuh kunci API milikmu sendiri dari
+      <strong>console.anthropic.com</strong>. Kunci disimpan di browser ini saja
+      (<code>localStorage</code>) dan dikirim langsung ke api.anthropic.com — tidak
+      lewat server lain. Jangan pakai di perangkat yang dipakai bersama.
+    </p>
+    <div class="field">
+      <label for="apiKey">API key</label>
+      <div class="inputwrap">
+        <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <button class="btn" value="save">Simpan</button>
+    <button class="btn ghost" value="clear" formnovalidate>Hapus kunci</button>
+    <button class="btn ghost" value="cancel" formnovalidate>Batal</button>
+  </form>
+</dialog>
+
+<dialog id="logDialog">
+  <h3>Catat makanan</h3>
+  <form method="dialog" id="logForm">
+    <div class="field">
+      <label for="foodName">Nama makanan</label>
+      <div class="inputwrap"><input id="foodName" name="name" type="text" placeholder="Nasi goreng" required></div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label for="foodKcal">Kalori</label>
+        <div class="inputwrap"><input id="foodKcal" name="kcal" type="number" inputmode="numeric" min="0" max="5000" placeholder="450" required><span class="unit">kkal</span></div>
+      </div>
+      <div class="field">
+        <label for="foodProtein">Protein</label>
+        <div class="inputwrap"><input id="foodProtein" name="protein" type="number" inputmode="numeric" min="0" max="500" placeholder="12"><span class="unit">g</span></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label for="foodCarbs">Karbo</label>
+        <div class="inputwrap"><input id="foodCarbs" name="carbs" type="number" inputmode="numeric" min="0" max="800" placeholder="60"><span class="unit">g</span></div>
+      </div>
+      <div class="field">
+        <label for="foodFat">Lemak</label>
+        <div class="inputwrap"><input id="foodFat" name="fat" type="number" inputmode="numeric" min="0" max="400" placeholder="14"><span class="unit">g</span></div>
+      </div>
+    </div>
+    <button class="btn" value="save">Simpan</button>
+    <button class="btn ghost" value="cancel" formnovalidate>Batal</button>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  "use strict";
+
+  const STORE_KEY = "halo.profile.v1";
+  const LOG_KEY = "halo.log.v1";
+  const $ = (sel) => document.querySelector(sel);
+  const main = $("#main"), footer = $("#footer"), topbar = $("#topbar");
+  const nextBtn = $("#nextBtn"), backBtn = $("#backBtn");
+  const progressBar = $("#progressBar"), stepCount = $("#stepCount");
+
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+  // ---------------------------------------------------------------- state
+  const load = (key, fallback) => {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+    catch { return fallback; }
+  };
+  const save = (key, value) => {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* mode privat */ }
+  };
+
+  let data = load(STORE_KEY, {});
+  let log = load(LOG_KEY, {});
+  let index = 0;
+  let goingBack = false;
+  let error = "";
+
+  const persist = () => save(STORE_KEY, data);
+
+  // ---------------------------------------------------------------- helpers
+  const ACTIVITY = {
+    rendah:  { factor: 1.20, label: "Jarang bergerak",  desc: "Kerja duduk, hampir tanpa olahraga", emoji: "🪑" },
+    ringan:  { factor: 1.375, label: "Ringan",          desc: "Olahraga ringan 1–3x seminggu",      emoji: "🚶" },
+    sedang:  { factor: 1.55, label: "Sedang",           desc: "Olahraga 3–5x seminggu",             emoji: "🏃" },
+    tinggi:  { factor: 1.725, label: "Aktif",           desc: "Olahraga berat 6–7x seminggu",       emoji: "🏋️" },
+  };
+
+  const GOALS = {
+    turun:    { label: "Turunkan berat badan", emoji: "📉", sign: -1 },
+    jaga:     { label: "Pertahankan berat badan", emoji: "⚖️", sign: 0 },
+    naik:     { label: "Naikkan berat badan", emoji: "📈", sign: 1 },
+  };
+
+  const KCAL_PER_KG = 7700;
+
+  const ageFrom = (iso) => {
+    if (!iso) return null;
+    const b = new Date(iso + "T00:00:00");
+    if (Number.isNaN(b.getTime())) return null;
+    const now = new Date();
+    let a = now.getFullYear() - b.getFullYear();
+    const m = now.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
+    return a;
+  };
+
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const fmtDate = (d) => d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  const num = (n) => Math.round(n).toLocaleString("id-ID");
+
+  function computePlan(d) {
+    const age = ageFrom(d.birthdate) ?? 25;
+    const w = Number(d.weight), h = Number(d.height);
+    const sexOffset = d.gender === "pria" ? 5 : d.gender === "wanita" ? -161 : -78;
+    const bmr = 10 * w + 6.25 * h - 5 * age + sexOffset;
+    const activity = ACTIVITY[d.activity] ?? ACTIVITY.ringan;
+    const tdee = bmr * activity.factor;
+
+    const sign = GOALS[d.goal]?.sign ?? 0;
+    const pace = sign === 0 ? 0 : Number(d.pace || 0.5);
+    let daily = tdee + sign * (pace * KCAL_PER_KG) / 7;
+
+    // Batas bawah aman supaya defisit tidak ekstrem.
+    const floor = d.gender === "wanita" ? 1200 : d.gender === "pria" ? 1500 : 1350;
+    const clamped = daily < floor;
+    daily = Math.max(daily, floor);
+    daily = Math.round(daily / 10) * 10;
+
+    // Protein lebih tinggi saat defisit untuk menjaga massa otot.
+    const proteinPerKg = sign === -1 ? 2.0 : sign === 1 ? 1.8 : 1.6;
+    const protein = Math.round(Math.min(w, 120) * proteinPerKg);
+    const fat = Math.round((daily * 0.25) / 9);
+    const carbs = Math.max(0, Math.round((daily - protein * 4 - fat * 9) / 4));
+
+    const bmi = w / Math.pow(h / 100, 2);
+    const bmiLabel =
+      bmi < 18.5 ? "Kurang" : bmi < 25 ? "Normal" : bmi < 30 ? "Berlebih" : "Obesitas";
+
+    // Kalau kalori kena batas bawah, defisit riil mengecil — pakai kecepatan
+    // efektif itu supaya estimasi tanggal tidak bohong.
+    const effectivePace = Math.abs(daily - tdee) * 7 / KCAL_PER_KG;
+
+    let weeks = null, targetDate = null, totalDelta = null;
+    if (sign !== 0 && d.targetWeight) {
+      totalDelta = Math.abs(Number(d.targetWeight) - w);
+      if (totalDelta > 0 && effectivePace > 0.01) {
+        weeks = Math.ceil(totalDelta / effectivePace);
+        targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + weeks * 7);
+      }
+    }
+
+    return {
+      bmr: Math.round(bmr),
+      tdee: Math.round(tdee),
+      daily, protein, fat, carbs, clamped,
+      fiber: Math.round((daily / 1000) * 14),
+      water: Math.round((w * 35) / 50) * 50,
+      bmi: Math.round(bmi * 10) / 10,
+      bmiLabel, weeks, targetDate, totalDelta, age,
+      effectivePace: Math.round(effectivePace * 100) / 100,
+    };
+  }
+
+  // ---------------------------------------------------------------- widgets
+  function optionList(key, items, { multi = false } = {}) {
+    const current = data[key];
+    return `<div class="options" role="${multi ? "group" : "radiogroup"}">` + items.map((it) => {
+      const on = multi ? (current || []).includes(it.value) : current === it.value;
+      return `
+        <button type="button" class="opt" role="${multi ? "checkbox" : "radio"}" aria-checked="${on}"
+                data-opt="${key}" data-value="${it.value}" data-multi="${multi}">
+          ${it.emoji ? `<span class="emoji">${it.emoji}</span>` : ""}
+          <span class="body">
+            <span class="label">${it.label}</span>
+            ${it.desc ? `<span class="desc">${it.desc}</span>` : ""}
+          </span>
+          <span class="tick">${TICK}</span>
+        </button>`;
+    }).join("") + `</div>`;
+  }
+
+  // ---------------------------------------------------------------- steps
+  const steps = [
+    {
+      id: "name",
+      title: () => "Siapa nama panggilanmu?",
+      sub: () => "Biar aku bisa menyapamu dengan benar.",
+      render: () => `
+        <div class="field">
+          <label for="f-name">Nama</label>
+          <div class="inputwrap">
+            <input id="f-name" type="text" autocomplete="given-name" autocapitalize="words"
+                   placeholder="Contoh: Eka" value="${(data.name || "").replace(/"/g, "&quot;")}" data-bind="name">
+          </div>
+        </div>`,
+      focus: "#f-name",
+      validate: () => (data.name || "").trim().length >= 2 ? "" : "Isi nama minimal 2 huruf.",
+    },
+    {
+      id: "gender",
+      title: () => "Jenis kelamin",
+      sub: () => "Dipakai untuk menghitung kebutuhan kalori harianmu.",
+      render: () => optionList("gender", [
+        { value: "pria", label: "Pria", emoji: "👨" },
+        { value: "wanita", label: "Wanita", emoji: "👩" },
+        { value: "lainnya", label: "Lainnya / tidak ingin menyebut", emoji: "🧑", desc: "Pakai rata-rata dari kedua rumus" },
+      ]),
+      autoNext: true,
+      validate: () => data.gender ? "" : "Pilih salah satu dulu ya.",
+    },
+    {
+      id: "birthdate",
+      title: () => "Kapan kamu lahir?",
+      sub: () => "Umur memengaruhi metabolisme basalmu.",
+      render: () => {
+        const age = ageFrom(data.birthdate);
+        return `
+          <div class="field">
+            <label for="f-bd">Tanggal lahir</label>
+            <div class="inputwrap">
+              <input id="f-bd" type="date" max="${todayKey()}" value="${data.birthdate || ""}" data-bind="birthdate">
+            </div>
+          </div>
+          <p class="note" id="ageHint">${age != null && age >= 0 ? `Umurmu sekarang <strong>${age} tahun</strong>.` : ""}</p>`;
+      },
+      onInput: () => {
+        const age = ageFrom(data.birthdate);
+        const hint = $("#ageHint");
+        if (hint) hint.innerHTML = age != null && age >= 0 ? `Umurmu sekarang <strong>${age} tahun</strong>.` : "";
+      },
+      validate: () => {
+        const age = ageFrom(data.birthdate);
+        if (age == null) return "Pilih tanggal lahirmu.";
+        if (age < 13) return "Prototipe ini dihitung untuk usia 13 tahun ke atas.";
+        if (age > 100) return "Tanggalnya sepertinya keliru.";
+        return "";
+      },
+    },
+    {
+      id: "body",
+      title: () => "Tinggi & berat badan",
+      sub: () => "Perkiraan kasar juga tidak apa-apa — bisa diubah nanti.",
+      render: () => `
+        <div class="field">
+          <label for="f-h">Tinggi badan</label>
+          <div class="inputwrap">
+            <input id="f-h" type="number" inputmode="decimal" min="100" max="250" step="1"
+                   placeholder="170" value="${data.height ?? ""}" data-bind="height"><span class="unit">cm</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-w">Berat badan</label>
+          <div class="inputwrap">
+            <input id="f-w" type="number" inputmode="decimal" min="30" max="300" step="0.1"
+                   placeholder="65" value="${data.weight ?? ""}" data-bind="weight"><span class="unit">kg</span>
+          </div>
+        </div>`,
+      focus: "#f-h",
+      validate: () => {
+        const h = Number(data.height), w = Number(data.weight);
+        if (!(h >= 100 && h <= 250)) return "Tinggi badan antara 100–250 cm.";
+        if (!(w >= 30 && w <= 300)) return "Berat badan antara 30–300 kg.";
+        return "";
+      },
+    },
+    {
+      id: "goal",
+      title: () => `Apa tujuanmu, ${data.name || "kamu"}?`,
+      sub: () => "Ini menentukan surplus atau defisit kalorimu.",
+      render: () => optionList("goal", [
+        { value: "turun", label: "Turunkan berat badan", emoji: "📉" },
+        { value: "jaga", label: "Pertahankan berat badan", emoji: "⚖️" },
+        { value: "naik", label: "Naikkan berat badan", emoji: "📈" },
+      ]),
+      autoNext: true,
+      validate: () => data.goal ? "" : "Pilih tujuanmu dulu.",
+    },
+    {
+      id: "target",
+      skip: () => data.goal === "jaga",
+      title: () => data.goal === "naik" ? "Berat badan targetmu?" : "Mau turun ke berapa?",
+      sub: () => `Berat sekarang: ${data.weight ?? "-"} kg.`,
+      render: () => `
+        <div class="field">
+          <label for="f-tw">Berat target</label>
+          <div class="inputwrap">
+            <input id="f-tw" type="number" inputmode="decimal" min="30" max="300" step="0.1"
+                   placeholder="${data.goal === "naik" ? Math.round(Number(data.weight) + 5) : Math.round(Number(data.weight) - 5)}"
+                   value="${data.targetWeight ?? ""}" data-bind="targetWeight"><span class="unit">kg</span>
+          </div>
+        </div>
+        <p class="note" id="targetHint"></p>`,
+      focus: "#f-tw",
+      onInput: () => {
+        const hint = $("#targetHint");
+        const t = Number(data.targetWeight), w = Number(data.weight);
+        if (!hint) return;
+        hint.innerHTML = t > 0 && Math.abs(t - w) > 0
+          ? `Selisih <strong>${(Math.abs(t - w)).toFixed(1)} kg</strong> dari berat sekarang.` : "";
+      },
+      validate: () => {
+        const t = Number(data.targetWeight), w = Number(data.weight);
+        if (!(t >= 30 && t <= 300)) return "Berat target antara 30–300 kg.";
+        if (data.goal === "turun" && t >= w) return "Target harus lebih ringan dari berat sekarang.";
+        if (data.goal === "naik" && t <= w) return "Target harus lebih berat dari berat sekarang.";
+        return "";
+      },
+    },
+    {
+      id: "pace",
+      skip: () => data.goal === "jaga",
+      title: () => "Seberapa cepat?",
+      sub: () => "Perubahan pelan lebih mudah dipertahankan jangka panjang.",
+      render: () => optionList("pace", [
+        { value: "0.25", label: "0,25 kg / minggu", emoji: "🐢", desc: "Santai, hampir tak terasa" },
+        { value: "0.5", label: "0,5 kg / minggu", emoji: "👍", desc: "Direkomendasikan" },
+        { value: "0.75", label: "0,75 kg / minggu", emoji: "⚡", desc: "Butuh disiplin" },
+        { value: "1", label: "1 kg / minggu", emoji: "🔥", desc: "Agresif — hanya untuk jangka pendek" },
+      ]),
+      autoNext: true,
+      validate: () => data.pace ? "" : "Pilih kecepatan targetmu.",
+    },
+    {
+      id: "activity",
+      title: () => "Seberapa aktif harimu?",
+      sub: () => "Termasuk aktivitas kerja dan olahraga.",
+      render: () => optionList("activity", Object.entries(ACTIVITY).map(([value, a]) => ({
+        value, label: a.label, desc: a.desc, emoji: a.emoji,
+      }))),
+      autoNext: true,
+      validate: () => data.activity ? "" : "Pilih level aktivitasmu.",
+    },
+    {
+      id: "diet",
+      title: () => "Ada preferensi makan?",
+      sub: () => "Dipakai untuk menyesuaikan saran menu.",
+      render: () => optionList("diet", [
+        { value: "bebas", label: "Tidak ada", emoji: "🍽️" },
+        { value: "vegetarian", label: "Vegetarian", emoji: "🥗" },
+        { value: "vegan", label: "Vegan", emoji: "🌱" },
+        { value: "rendah-karbo", label: "Rendah karbo", emoji: "🥑" },
+        { value: "tinggi-protein", label: "Tinggi protein", emoji: "🍗" },
+      ]),
+      autoNext: true,
+      validate: () => data.diet ? "" : "Pilih salah satu (boleh 'Tidak ada').",
+    },
+    {
+      id: "hurdles",
+      title: () => "Apa yang biasanya bikin gagal?",
+      sub: () => "Boleh pilih lebih dari satu, boleh juga dilewati.",
+      render: () => optionList("hurdles", [
+        { value: "ngemil", label: "Ngemil di malam hari", emoji: "🌙" },
+        { value: "jajan", label: "Sering jajan / delivery", emoji: "🛵" },
+        { value: "konsisten", label: "Susah konsisten", emoji: "🔁" },
+        { value: "sibuk", label: "Terlalu sibuk untuk masak", emoji: "⏰" },
+        { value: "porsi", label: "Porsi susah dikontrol", emoji: "🍚" },
+      ], { multi: true }),
+      nextLabel: () => (data.hurdles || []).length ? "Lanjut" : "Lewati",
+      validate: () => "",
+    },
+    {
+      id: "generating",
+      chrome: false,
+      render: () => `
+        <div class="loading">
+          <div class="ring"></div>
+          <h1 style="font-size:22px">Menyusun rencanamu…</h1>
+          <p class="sub">Sebentar ya, ${data.name || "kamu"}.</p>
+          <ul class="checklist" id="genList">
+            <li><span class="dot">${TICK}</span> Menghitung metabolisme basal</li>
+            <li><span class="dot">${TICK}</span> Menyesuaikan dengan aktivitas harian</li>
+            <li><span class="dot">${TICK}</span> Menentukan target kalori</li>
+            <li><span class="dot">${TICK}</span> Membagi protein, karbo, dan lemak</li>
+          </ul>
+        </div>`,
+      mount: () => {
+        const items = [...document.querySelectorAll("#genList li")];
+        let i = 0;
+        const timers = [];
+        const tick = () => {
+          if (i < items.length) {
+            items[i].classList.add("done");
+            i++;
+            timers.push(setTimeout(tick, 520));
+          } else {
+            timers.push(setTimeout(() => go(1), 420));
+          }
+        };
+        timers.push(setTimeout(tick, 350));
+        return () => timers.forEach(clearTimeout);
+      },
+    },
+    {
+      id: "plan",
+      chrome: false,
+      render: () => renderPlan(),
+      mount: () => {
+        data.completedAt = data.completedAt || new Date().toISOString();
+        persist();
+      },
+    },
+  ];
+
+  // ---------------------------------------------------------------- plan screen
+  function renderPlan() {
+    const p = computePlan(data);
+    data.plan = { daily: p.daily, protein: p.protein, carbs: p.carbs, fat: p.fat };
+
+    const goal = GOALS[data.goal] ?? GOALS.jaga;
+    const deltaKcal = p.daily - p.tdee;
+    const deltaText = deltaKcal === 0
+      ? "Setara dengan kebutuhan harianmu"
+      : `${deltaKcal < 0 ? "Defisit" : "Surplus"} ${num(Math.abs(deltaKcal))} kkal/hari`;
+
+    return `
+      <div class="screen">
+        <span class="badge">Rencana kamu siap 🎉</span>
+        <h1 style="margin-top:12px">Target harian ${data.name || ""}</h1>
+        <p class="sub">${goal.emoji} ${goal.label} · ${ACTIVITY[data.activity]?.label ?? ""}</p>
+
+        <div class="card kcal">
+          <div class="num">${num(p.daily)}</div>
+          <div class="cap">kkal per hari · ${deltaText}</div>
+        </div>
+
+        <div class="macros">
+          <div class="macro"><div class="g">${p.protein}g</div><div class="n">Protein</div><div class="bar" style="background:var(--protein)"></div></div>
+          <div class="macro"><div class="g">${p.carbs}g</div><div class="n">Karbo</div><div class="bar" style="background:var(--carb)"></div></div>
+          <div class="macro"><div class="g">${p.fat}g</div><div class="n">Lemak</div><div class="bar" style="background:var(--fat)"></div></div>
+        </div>
+
+        ${p.clamped ? `<p class="note" style="margin-top:12px">⚠️ Target kecepatanmu menghasilkan kalori di bawah batas aman, jadi angkanya dinaikkan ke minimum ${num(p.daily)} kkal. Pertimbangkan kecepatan yang lebih pelan.</p>` : ""}
+
+        <div class="sectitle">Rincian perhitungan</div>
+        <div class="card rows">
+          <div class="row"><span class="k">Metabolisme basal (BMR)</span><span class="v">${num(p.bmr)} kkal</span></div>
+          <div class="row"><span class="k">Kebutuhan harian (TDEE)</span><span class="v">${num(p.tdee)} kkal</span></div>
+          <div class="row"><span class="k">BMI</span><span class="v">${p.bmi} · ${p.bmiLabel}</span></div>
+          <div class="row"><span class="k">Serat</span><span class="v">${p.fiber} g</span></div>
+          <div class="row"><span class="k">Air minum</span><span class="v">${num(p.water)} ml</span></div>
+        </div>
+
+        ${p.targetDate ? `
+        <div class="sectitle">Perkiraan target</div>
+        <div class="card rows">
+          <div class="row"><span class="k">Dari ${data.weight} kg ke ${data.targetWeight} kg</span><span class="v">${p.totalDelta.toFixed(1)} kg</span></div>
+          <div class="row"><span class="k">Perkiraan tercapai</span><span class="v">${fmtDate(p.targetDate)}</span></div>
+          <div class="row"><span class="k">Durasi</span><span class="v">± ${p.weeks} minggu</span></div>
+          <div class="row"><span class="k">Laju sebenarnya</span><span class="v">${p.effectivePace.toString().replace(".", ",")} kg / minggu</span></div>
+        </div>` : ""}
+
+        ${(data.hurdles || []).length ? `
+        <div class="sectitle">Catatan untukmu</div>
+        <div class="card"><p class="note" style="margin:0">${hurdleTips(data.hurdles)}</p></div>` : ""}
+
+        <p class="note" style="margin:18px 0 8px">
+          Angka di atas adalah estimasi berbasis rumus Mifflin-St Jeor, bukan nasihat medis.
+          Konsultasikan ke dokter atau ahli gizi sebelum mengubah pola makan secara signifikan.
+        </p>
+
+        <button class="btn" data-action="home" style="margin-top:8px">Mulai pakai</button>
+        <button class="btn ghost" data-action="restart">Ulangi onboarding</button>
+      </div>`;
+  }
+
+  function hurdleTips(hurdles) {
+    const tips = {
+      ngemil: "Siapkan camilan tinggi protein (telur rebus, yogurt) supaya rasa lapar malam tidak jadi kalori berlebih.",
+      jajan: "Tentukan jatah jajan 1–2x seminggu di awal minggu, jangan diputuskan saat lapar.",
+      konsisten: "Kejar rata-rata mingguan, bukan kesempurnaan harian. Satu hari meleset tidak membatalkan progres.",
+      sibuk: "Masak sekali untuk 2–3 porsi. Menu berulang justru bikin pencatatan lebih gampang.",
+      porsi: "Pakai piring lebih kecil dan timbang bahan pokok (nasi, ayam) selama dua minggu pertama.",
+    };
+    return hurdles.map((h) => tips[h]).filter(Boolean).join("<br><br>");
+  }
+
+  // ---------------------------------------------------------------- home
+  const PRESETS = [
+    { name: "Nasi putih (1 centong)", kcal: 175, protein: 3, carbs: 40, fat: 0 },
+    { name: "Ayam dada panggang 100g", kcal: 165, protein: 31, carbs: 0, fat: 4 },
+    { name: "Telur rebus", kcal: 78, protein: 6, carbs: 1, fat: 5 },
+    { name: "Tempe goreng 50g", kcal: 170, protein: 9, carbs: 7, fat: 11 },
+    { name: "Nasi goreng 1 porsi", kcal: 560, protein: 15, carbs: 76, fat: 20 },
+    { name: "Kopi susu gula aren", kcal: 240, protein: 5, carbs: 34, fat: 9 },
+  ];
+
+  function renderHome() {
+    const p = computePlan(data);
+    const key = todayKey();
+    const items = log[key] || [];
+    const sum = items.reduce((a, it) => ({
+      kcal: a.kcal + (it.kcal || 0),
+      protein: a.protein + (it.protein || 0),
+      carbs: a.carbs + (it.carbs || 0),
+      fat: a.fat + (it.fat || 0),
+    }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+
+    const left = Math.max(0, p.daily - sum.kcal);
+    const pct = Math.min(1, p.daily ? sum.kcal / p.daily : 0);
+    const R = 62, C = 2 * Math.PI * R;
+
+    const bar = (label, done, target, color) => {
+      const w = target ? Math.min(100, (done / target) * 100) : 0;
+      return `<div class="mbar">
+        <div class="top"><span>${label}</span><span class="r">${Math.round(done)} / ${target} g</span></div>
+        <div class="track"><i style="width:${w}%;background:${color}"></i></div>
+      </div>`;
+    };
+
+    topbar.hidden = true;
+    footer.hidden = true;
+
+    return `
+      <div class="screen">
+        <div class="home-head">
+          <div>
+            <div class="hi">Halo, ${data.name || "kamu"} 👋</div>
+            <div class="date">${new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="iconbtn" data-action="apikey" aria-label="Kunci API">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15L19 4M18 5l2 2M15 8l2 2"/></svg>
+            </button>
+            <button class="iconbtn" data-action="plan" aria-label="Lihat rencana">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M9 19V9M14 19v-7M19 19V7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="donut">
+            <svg width="150" height="150" viewBox="0 0 150 150">
+              <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="13"/>
+              <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--accent)" stroke-width="13"
+                      stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/>
+            </svg>
+            <div class="center">
+              <div class="big">${num(left)}</div>
+              <div class="lbl">kkal tersisa</div>
+            </div>
+          </div>
+          <div class="note" style="text-align:center;margin-bottom:10px">
+            ${num(sum.kcal)} dari ${num(p.daily)} kkal${sum.kcal > p.daily ? ` · lebih ${num(sum.kcal - p.daily)}` : ""}
+          </div>
+          ${bar("Protein", sum.protein, p.protein, "var(--protein)")}
+          ${bar("Karbo", sum.carbs, p.carbs, "var(--carb)")}
+          ${bar("Lemak", sum.fat, p.fat, "var(--fat)")}
+        </div>
+
+        <div class="sectitle">Tambah cepat</div>
+        <div class="chips">
+          ${PRESETS.map((f, i) => `<button class="chip" data-preset="${i}">${f.name} · ${f.kcal}</button>`).join("")}
+        </div>
+
+        <div class="sectitle">Makanan hari ini</div>
+        <div class="card">
+          ${items.length ? items.map((it, i) => `
+            <div class="logitem">
+              <div class="body">
+                <div class="nm">${escapeHtml(it.name)}</div>
+                <div class="mt">P ${it.protein || 0}g · K ${it.carbs || 0}g · L ${it.fat || 0}g</div>
+              </div>
+              <div class="kc">${num(it.kcal)}</div>
+              <button class="del" data-del="${i}" aria-label="Hapus">×</button>
+            </div>`).join("") : `<div class="empty">Belum ada catatan hari ini.</div>`}
+        </div>
+
+        <button class="btn" data-action="scan" style="margin-top:6px">📷 Scan makanan dari foto</button>
+        <button class="btn ghost" data-action="add" style="padding:14px">+ Catat manual</button>
+        <button class="btn ghost" data-action="restart">Atur ulang profil</button>
+        <div style="height:24px"></div>
+      </div>`;
+  }
+
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---------------------------------------------------------------- router
+  let cleanup = null;
+  let view = "onboarding"; // "onboarding" | "home"
+
+  const visibleSteps = () => steps.filter((s) => !(s.skip && s.skip()));
+
+  function render() {
+    if (cleanup) { cleanup(); cleanup = null; }
+
+    if (view === "home") {
+      main.innerHTML = renderHome();
+      return;
+    }
+
+    const step = steps[index];
+    const chrome = step.chrome !== false;
+    topbar.hidden = !chrome;
+    footer.hidden = !chrome;
+
+    if (chrome) {
+      const list = visibleSteps().filter((s) => s.chrome !== false);
+      const pos = list.indexOf(step);
+      const total = list.length;
+      progressBar.style.width = `${((pos + 1) / total) * 100}%`;
+      stepCount.textContent = `${pos + 1}/${total}`;
+      backBtn.disabled = index === 0;
+      nextBtn.textContent = step.nextLabel ? step.nextLabel() : "Lanjut";
+    }
+
+    const inner = step.chrome === false && step.id === "plan"
+      ? step.render()
+      : `<div class="screen${goingBack ? " back" : ""}">
+           ${step.title ? `<h1>${step.title()}</h1>` : ""}
+           ${step.sub ? `<p class="sub">${step.sub()}</p>` : ""}
+           <div class="error" id="err">${error}</div>
+           ${step.render()}
+         </div>`;
+    main.innerHTML = inner;
+    main.scrollTop = 0;
+    goingBack = false;
+
+    if (step.mount) cleanup = step.mount() || null;
+    if (step.focus) {
+      const el = $(step.focus);
+      if (el && !("ontouchstart" in window)) el.focus();
+    }
+  }
+
+  function go(delta) {
+    let i = index + delta;
+    while (steps[i] && steps[i].skip && steps[i].skip()) i += delta;
+    if (i < 0 || i >= steps.length) return;
+    error = "";
+    goingBack = delta < 0;
+    index = i;
+    render();
+  }
+
+  function next() {
+    const step = steps[index];
+    const msg = step.validate ? step.validate() : "";
+    if (msg) {
+      error = msg;
+      const el = $("#err");
+      if (el) el.textContent = msg;
+      return;
+    }
+    persist();
+    go(1);
+  }
+
+  function openHome() {
+    view = "home";
+    topbar.hidden = true;
+    footer.hidden = true;
+    render();
+  }
+
+  function restart() {
+    if (!confirm("Hapus profil dan ulangi onboarding dari awal?")) return;
+    data = {};
+    save(STORE_KEY, data);
+    view = "onboarding";
+    index = 0;
+    error = "";
+    topbar.hidden = false;
+    footer.hidden = false;
+    render();
+  }
+
+  // ---------------------------------------------------------------- events
+  nextBtn.addEventListener("click", next);
+  backBtn.addEventListener("click", () => go(-1));
+
+  main.addEventListener("input", (e) => {
+    const el = e.target.closest("[data-bind]");
+    if (!el) return;
+    const key = el.dataset.bind;
+    data[key] = el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value;
+    if (error) { error = ""; const err = $("#err"); if (err) err.textContent = ""; }
+    const step = steps[index];
+    if (step.onInput) step.onInput();
+  });
+
+  main.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.matches("input:not([type=number]), input[type=number]")) {
+      e.preventDefault();
+      next();
+    }
+  });
+
+  main.addEventListener("click", (e) => {
+    const opt = e.target.closest("[data-opt]");
+    if (opt) {
+      const key = opt.dataset.opt;
+      const value = opt.dataset.value;
+      const multi = opt.dataset.multi === "true";
+      if (multi) {
+        const set = new Set(data[key] || []);
+        set.has(value) ? set.delete(value) : set.add(value);
+        data[key] = [...set];
+      } else {
+        data[key] = value;
+      }
+      persist();
+      error = "";
+      const step = steps[index];
+      if (multi) {
+        render();
+      } else if (step.autoNext) {
+        // Beri jeda singkat supaya pilihan terlihat tercentang dulu.
+        opt.parentElement.querySelectorAll("[data-opt]").forEach((n) =>
+          n.setAttribute("aria-checked", String(n.dataset.value === value)));
+        setTimeout(next, 180);
+      } else {
+        render();
+      }
+      return;
+    }
+
+    const action = e.target.closest("[data-action]")?.dataset.action;
+    if (action === "home") return openHome();
+    if (action === "restart") return restart();
+    if (action === "plan") {
+      view = "onboarding";
+      index = steps.findIndex((s) => s.id === "plan");
+      return render();
+    }
+    if (action === "add") return openLogDialog();
+    if (action === "scan") return startScan();
+    if (action === "apikey") return openKeyDialog();
+
+    const preset = e.target.closest("[data-preset]");
+    if (preset) {
+      addLog({ ...PRESETS[Number(preset.dataset.preset)] });
+      return;
+    }
+
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      const key = todayKey();
+      (log[key] || []).splice(Number(del.dataset.del), 1);
+      save(LOG_KEY, log);
+      render();
+    }
+  });
+
+  function addLog(item) {
+    const key = todayKey();
+    log[key] = log[key] || [];
+    log[key].push(item);
+    save(LOG_KEY, log);
+    render();
+  }
+
+  const dialog = $("#logDialog");
+  const logForm = $("#logForm");
+  function openLogDialog() {
+    logForm.reset();
+    dialog.showModal();
+  }
+  dialog.addEventListener("close", () => {
+    if (dialog.returnValue !== "save") return;
+    const fd = new FormData(logForm);
+    const name = String(fd.get("name") || "").trim();
+    const kcal = Number(fd.get("kcal"));
+    if (!name || !Number.isFinite(kcal)) return;
+    addLog({
+      name,
+      kcal,
+      protein: Number(fd.get("protein")) || 0,
+      carbs: Number(fd.get("carbs")) || 0,
+      fat: Number(fd.get("fat")) || 0,
+    });
+  });
+
+  // ---------------------------------------------------------------- scan foto
+  // Analisis foto memakai Claude langsung dari browser dengan kunci API milik
+  // pengguna. Tidak ada server perantara, jadi kunci tidak pernah keluar dari
+  // perangkat kecuali ke api.anthropic.com.
+  const KEY_STORE = "halo.apikey.v1";
+  const scanDialog = $("#scanDialog");
+  const scanBody = $("#scanBody");
+  const keyDialog = $("#keyDialog");
+  const keyForm = $("#keyForm");
+  const photoInput = $("#photoInput");
+
+  let scanResult = null;
+
+  const getKey = () => {
+    try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; }
+  };
+
+  function openKeyDialog() {
+    $("#apiKey").value = getKey();
+    keyDialog.showModal();
+  }
+
+  keyDialog.addEventListener("close", () => {
+    if (keyDialog.returnValue === "clear") {
+      try { localStorage.removeItem(KEY_STORE); } catch { /* mode privat */ }
+      return;
+    }
+    if (keyDialog.returnValue !== "save") return;
+    const key = $("#apiKey").value.trim();
+    try {
+      if (key) localStorage.setItem(KEY_STORE, key);
+      else localStorage.removeItem(KEY_STORE);
+    } catch { /* mode privat */ }
+  });
+
+  function startScan() {
+    if (!getKey()) {
+      openKeyDialog();
+      return;
+    }
+    photoInput.value = "";
+    photoInput.click();
+  }
+
+  photoInput.addEventListener("change", async () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    scanResult = null;
+    try {
+      const { dataUrl, base64 } = await shrinkToJpeg(file);
+      showScan(`
+        <img class="scan-preview" src="${dataUrl}" alt="Foto makanan">
+        <div class="scan-status"><span class="spinner"></span> Menganalisis foto…</div>`);
+      const food = await analyzeFood(base64);
+      scanResult = { ...food, dataUrl };
+      renderScanResult();
+    } catch (err) {
+      showScan(`
+        <div class="alert"><strong>Gagal.</strong> ${escapeHtml(err.message)}</div>
+        <button class="btn" data-action="retry-scan">Coba foto lain</button>
+        <button class="btn ghost" data-action="apikey">Ubah kunci API</button>`);
+    }
+  });
+
+  function showScan(html) {
+    scanBody.innerHTML = html;
+    if (!scanDialog.open) scanDialog.showModal();
+  }
+
+  // Perkecil dulu: hemat token gambar dan mempercepat unggahan.
+  function shrinkToJpeg(file, maxEdge = 1024) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        resolve({ dataUrl, base64: dataUrl.slice(dataUrl.indexOf(",") + 1) });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("File itu tidak terbaca sebagai gambar."));
+      };
+      img.src = url;
+    });
+  }
+
+  const FOOD_SCHEMA = {
+    type: "object",
+    properties: {
+      terdeteksi: { type: "boolean", description: "true jika foto berisi makanan atau minuman" },
+      nama: { type: "string", description: "Nama makanan dalam bahasa Indonesia" },
+      porsi: { type: "string", description: "Perkiraan porsi yang terlihat, misal '1 piring' atau '200 g'" },
+      kalori: { type: "integer", description: "Total kalori porsi yang terlihat, kkal" },
+      protein: { type: "integer", description: "Protein dalam gram" },
+      karbo: { type: "integer", description: "Karbohidrat dalam gram" },
+      lemak: { type: "integer", description: "Lemak dalam gram" },
+      keyakinan: { type: "string", enum: ["tinggi", "sedang", "rendah"] },
+      catatan: { type: "string", description: "Satu kalimat singkat: asumsi porsi atau bahan yang tidak terlihat jelas" },
+    },
+    required: ["terdeteksi", "nama", "porsi", "kalori", "protein", "karbo", "lemak", "keyakinan", "catatan"],
+    additionalProperties: false,
+  };
+
+  const SCAN_PROMPT = `Kamu ahli gizi yang memperkirakan kandungan nutrisi dari foto makanan Indonesia.
+
+Perkirakan untuk porsi yang terlihat di foto, bukan porsi standar. Perhatikan
+ukuran piring dan benda pembanding di sekitarnya. Sertakan minyak, santan, saus,
+dan gula yang wajar untuk masakan itu meski tidak terlihat langsung.
+
+Kalau foto tidak berisi makanan atau minuman, set terdeteksi=false dan isi angka
+dengan 0.
+
+Jawab dalam bahasa Indonesia.`;
+
+  async function analyzeFood(base64) {
+    let res;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": getKey(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-opus-5",
+          max_tokens: 4000,
+          output_config: {
+            effort: "low",
+            format: { type: "json_schema", schema: FOOD_SCHEMA },
+          },
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+              { type: "text", text: SCAN_PROMPT },
+            ],
+          }],
+        }),
+      });
+    } catch {
+      throw new Error(
+        "Tidak bisa menghubungi api.anthropic.com. Fitur ini butuh halaman yang " +
+        "dibuka lewat http/https — di dalam artifact claude.ai atau file:// akan " +
+        "diblokir browser."
+      );
+    }
+
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      const msg = detail?.error?.message || `HTTP ${res.status}`;
+      if (res.status === 401) throw new Error("Kunci API ditolak. Cek lagi kuncinya.");
+      if (res.status === 429) throw new Error("Kena batas permintaan. Tunggu sebentar lalu ulangi.");
+      throw new Error(msg);
+    }
+
+    const data = await res.json();
+    if (data.stop_reason === "refusal") throw new Error("Permintaan ditolak model.");
+    if (data.stop_reason === "max_tokens") throw new Error("Jawaban model terpotong. Coba lagi.");
+
+    const text = (data.content || []).find((b) => b.type === "text")?.text;
+    if (!text) throw new Error("Model tidak mengembalikan hasil.");
+
+    let food;
+    try {
+      food = JSON.parse(text);
+    } catch {
+      throw new Error("Jawaban model bukan JSON yang valid.");
+    }
+    if (!food.terdeteksi) throw new Error("Tidak ada makanan yang terlihat di foto itu.");
+    return food;
+  }
+
+  function renderScanResult() {
+    const f = scanResult;
+    showScan(`
+      <img class="scan-preview" src="${f.dataUrl}" alt="Foto makanan">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span class="confidence ${escapeHtml(f.keyakinan)}">Keyakinan ${escapeHtml(f.keyakinan)}</span>
+        <span class="note">${escapeHtml(f.porsi)}</span>
+      </div>
+      <p class="note" style="margin:8px 0 16px">${escapeHtml(f.catatan)}</p>
+
+      <div class="field">
+        <label for="s-name">Nama</label>
+        <div class="inputwrap"><input id="s-name" type="text" value="${escapeHtml(f.nama)}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="s-kcal">Kalori</label>
+          <div class="inputwrap"><input id="s-kcal" type="number" inputmode="numeric" value="${Number(f.kalori) || 0}"><span class="unit">kkal</span></div>
+        </div>
+        <div class="field">
+          <label for="s-protein">Protein</label>
+          <div class="inputwrap"><input id="s-protein" type="number" inputmode="numeric" value="${Number(f.protein) || 0}"><span class="unit">g</span></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="s-carbs">Karbo</label>
+          <div class="inputwrap"><input id="s-carbs" type="number" inputmode="numeric" value="${Number(f.karbo) || 0}"><span class="unit">g</span></div>
+        </div>
+        <div class="field">
+          <label for="s-fat">Lemak</label>
+          <div class="inputwrap"><input id="s-fat" type="number" inputmode="numeric" value="${Number(f.lemak) || 0}"><span class="unit">g</span></div>
+        </div>
+      </div>
+      <p class="note" style="margin:0 0 14px">Angkanya perkiraan — silakan dikoreksi sebelum disimpan.</p>
+      <button class="btn" data-action="save-scan">Simpan ke catatan</button>
+      <button class="btn ghost" data-action="retry-scan">Foto ulang</button>`);
+  }
+
+  function saveScanResult() {
+    const name = $("#s-name").value.trim();
+    const kcal = Number($("#s-kcal").value);
+    if (!name || !Number.isFinite(kcal)) return;
+    addLog({
+      name,
+      kcal,
+      protein: Number($("#s-protein").value) || 0,
+      carbs: Number($("#s-carbs").value) || 0,
+      fat: Number($("#s-fat").value) || 0,
+    });
+    scanResult = null;
+    scanDialog.close();
+  }
+
+  scanBody.addEventListener("click", (e) => {
+    const action = e.target.closest("[data-action]")?.dataset.action;
+    if (action === "retry-scan") return startScan();
+    if (action === "save-scan") return saveScanResult();
+    if (action === "apikey") return openKeyDialog();
+  });
+
+  // ---------------------------------------------------------------- boot
+  if (data.completedAt) {
+    openHome();
+  } else {
+    render();
+  }
+})();
+</script>
+</body>
+</html>
