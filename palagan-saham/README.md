@@ -19,6 +19,7 @@ Isinya:
   (Indo Acidatama) dengan harga acuan Rp132, penutupan 2 Okt 2026 menurut hasil pencarian web. Kode dan harga acuan
   bisa diganti dengan mengeklik kode saham.
 - **Web:** versi ini juga ada di GitHub Pages repo ini: https://zenithxyz2512.github.io/halo/palagan-saham/
+  Di sana tombol **Live** memakai harga asli SRSN dari Google Sheets (lihat "Mode Live" di bawah).
 - **Mode feed:** `npm install`, lalu `node feed-server.js`, lalu buka `index.html?feed=ws://localhost:8787`.
   Opsi: `--code BBCA --prev 7500 --speed 5 --scenario akumulasi --port 8787`.
 - **Tes:** `npm test`.
@@ -60,6 +61,42 @@ cocok. Silakan cek ulang ke sumbernya sebelum dipakai untuk hal penting.
 
 Simulator mengikuti tanggal: ARB otomatis jadi simetris kalau tanggal simulasinya 2027 atau sesudahnya.
 
+## Mode Live (gratis, tertunda)
+
+Harga asli diambil dari fungsi `GOOGLEFINANCE` di Google Sheets, lalu halaman membacanya langsung dari browser
+lewat endpoint CSV Google Sheets (`/gviz/tq?tqx=out:csv`), yang mengizinkan akses dari situs lain (CORS).
+Tidak perlu server dan tidak perlu API key.
+
+- **Yang asli:** harga terakhir, open, high, low, volume, harga acuan (penutupan kemarin), waktu transaksi terakhir.
+  Google menandai data BEI untuk SRSN tertunda 10 menit; halaman mengecek ulang tiap 2 menit.
+- **Yang tetap simulasi:** antrean bid/offer, tembakan HAKA/HAKI, running trade, tekanan 5 menit, tembok.
+  Simulator ditambatkan ke harga asli: pembuat pasar memasang kuotasi di sekitar harga itu, dan laju transaksinya
+  mengikuti pertambahan volume asli. Net asing, nilai, dan frekuensi tidak tersedia dari Google Finance.
+- **Di luar jam bursa** halaman menampilkan data terakhir dan tombol untuk mensimulasikan hari berikutnya.
+
+### Membuat sheet sendiri
+
+1. Buat Google Sheet dengan baris judul: `Kode, Harga, Pembukaan, Tertinggi, Terendah, Volume (lembar),
+   Penutupan kemarin, Waktu transaksi, Tunda (menit)`.
+2. Baris berikutnya: kode saham di kolom A, lalu rumus berikut. Akun berbahasa Indonesia memakai `;` sebagai
+   pemisah argumen; akun berbahasa Inggris memakai `,`.
+
+   ```
+   B2: =GOOGLEFINANCE("IDX:"&A2;"price")
+   C2: =GOOGLEFINANCE("IDX:"&A2;"priceopen")
+   D2: =GOOGLEFINANCE("IDX:"&A2;"high")
+   E2: =GOOGLEFINANCE("IDX:"&A2;"low")
+   F2: =GOOGLEFINANCE("IDX:"&A2;"volume")
+   G2: =GOOGLEFINANCE("IDX:"&A2;"closeyest")
+   H2: =TEXT(GOOGLEFINANCE("IDX:"&A2;"tradetime");"yyyy-mm-dd hh:mm:ss")
+   I2: =GOOGLEFINANCE("IDX:"&A2;"datadelay")
+   ```
+
+3. Bagikan: Akses umum → Siapa saja yang memiliki link → Pelihat. Tanpa ini Google menjawab 401.
+4. Buka halaman dengan `?sheet=<ID sheet>` (ID adalah bagian URL di antara `/d/` dan `/edit`).
+
+Halaman memakai baris yang kodenya sama dengan kode yang sedang dipilih, atau SRSN, atau baris pertama.
+
 ## Soal data live
 
 Ini bagian yang menentukan apakah versi "beneran" bisa dibuat.
@@ -73,7 +110,8 @@ Ini bagian yang menentukan apakah versi "beneran" bisa dibuat.
   [GOAPI](https://goapi.io/api-data-saham-indonesia/), mengklaim menyediakan data real-time termasuk order book.
   Belum dicoba di proyek ini; cek harga, cakupan, dan lisensi redistribusinya dulu.
 - Jangan scraping aplikasi sekuritas (Stockbit, dll.) tanpa izin: melanggar ketentuan layanan dan bisa diputus kapan saja.
-- Sumber gratis seperti Yahoo Finance hanya memberi harga dan volume tertunda, tanpa antrean. Itu pun tidak bisa
+- Jalur gratis yang dipakai di sini adalah Google Sheets (lihat "Mode Live"): harga tertunda, tanpa antrean.
+- Sumber gratis seperti Yahoo Finance juga hanya memberi harga dan volume tertunda, tanpa antrean. Itu pun tidak bisa
   dipakai otomatis: pada 5 Okt 2026, workflow GitHub Actions yang mencoba mengambil data per menit SRSN.JK ditolak
   Yahoo dengan HTTP 429 (Too Many Requests), termasuk saat memakai cookie dan crumb.
 
