@@ -25,6 +25,8 @@ Isinya:
 - **Tes:** `npm test`.
 
 Kontrol: seret untuk memutar, cubit/gulir untuk zoom, klik ganda untuk reset kamera, spasi untuk jeda.
+Pita waktu di bawah medan merekam keadaan tiap 5 detik waktu pasar: geser, gulir, atau klik grafik harga untuk
+melihat jam sebelumnya; tombolnya mundur/maju 1 menit, putar ulang, dan **Sekarang** untuk kembali.
 Klik kode saham untuk ganti kode dan harga acuan.
 
 ## Dari Bitcoin ke BEI
