@@ -24,6 +24,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: data-srsn
+          # Dua commit terakhir: commit hari ini bisa ditimpa (--amend) tanpa kehilangan induknya.
+          fetch-depth: 2
 
       - name: Ambil candle dari Yahoo Finance
         env:
