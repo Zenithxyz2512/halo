@@ -1,0 +1,1713 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Palagan Saham</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Saira+Stencil+One&display=swap">
+<style>
+/* Tata letak: meja pasir 3D di tengah, laporan intel (order book, running trade) mengapit kiri-kanan;
+   di layar sempit semuanya menumpuk dan halaman bergulir. */
+:root {
+  --bg: #eceee6;
+  --surface: #f7f8f3;
+  --surface-2: #e2e5da;
+  --ink: #1b2119;
+  --muted: #5b6456;
+  --rule: #c9cdbf;
+  --brass: #94640f;
+  --brass-soft: rgba(148, 100, 15, .14);
+  --bull: #008a62;
+  --bear: #d4412a;
+  --bull-ink: #00704f;
+  --bear-ink: #b3341f;
+  --bull-soft: rgba(0, 138, 98, .16);
+  --bear-soft: rgba(212, 65, 42, .15);
+  --field: #d3caa8;
+  --stone: #a9a797;
+  --veil: rgba(236, 238, 230, .62);
+  --scrim: rgba(17, 21, 17, .42);
+  --shadow: 0 1px 0 rgba(27, 33, 25, .05), 0 10px 26px -14px rgba(27, 33, 25, .35);
+  --font-display: 'Saira Stencil One', 'Arial Narrow', 'Roboto Condensed', Impact, sans-serif;
+  --font-ui: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111511; --surface: #181d18; --surface-2: #222922; --ink: #e4e8dc; --muted: #9aa392; --rule: #2f372e;
+    --brass: #d6a54a; --brass-soft: rgba(214, 165, 74, .16);
+    --bull: #1fa27a; --bear: #ea5f45; --bull-ink: #3cc497; --bear-ink: #ff7d64;
+    --bull-soft: rgba(31, 162, 122, .22); --bear-soft: rgba(234, 95, 69, .2);
+    --field: #4c4838; --stone: #66655a; --veil: rgba(17, 21, 17, .6); --scrim: rgba(0, 0, 0, .55);
+    --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 12px 30px -12px rgba(0, 0, 0, .65);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111511; --surface: #181d18; --surface-2: #222922; --ink: #e4e8dc; --muted: #9aa392; --rule: #2f372e;
+  --brass: #d6a54a; --brass-soft: rgba(214, 165, 74, .16);
+  --bull: #1fa27a; --bear: #ea5f45; --bull-ink: #3cc497; --bear-ink: #ff7d64;
+  --bull-soft: rgba(31, 162, 122, .22); --bear-soft: rgba(234, 95, 69, .2);
+  --field: #4c4838; --stone: #66655a; --veil: rgba(17, 21, 17, .6); --scrim: rgba(0, 0, 0, .55);
+  --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 12px 30px -12px rgba(0, 0, 0, .65);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 14px/1.45 var(--font-ui); -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+.tnum, td, th { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.app {
+  display: grid; gap: 12px; padding-inline: 16px; padding-block: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "bar" "stage" "stats" "book" "tape";
+}
+
+/* ---- bilah atas ---- */
+.bar { grid-area: bar; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; min-width: 0; }
+.brand { display: flex; flex-direction: column; gap: 3px; }
+.wordmark { font-family: var(--font-display); font-size: 21px; line-height: .95; letter-spacing: .03em; }
+.brand small { font-size: 10.5px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; font-weight: 600; }
+.ticker { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; min-width: 0; }
+.code {
+  font-family: var(--font-display); font-size: 27px; line-height: 1; letter-spacing: .04em;
+  padding: 6px 10px 5px; border: 1.5px dashed var(--rule); border-radius: var(--r); background: transparent; cursor: pointer;
+}
+.code:hover { border-color: var(--brass); }
+.quote { display: flex; flex-direction: column; line-height: 1.02; min-width: 0; }
+.last { font-family: var(--font-display); font-size: 34px; letter-spacing: .02em; }
+.issuer { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.chg { font-weight: 700; font-size: 13px; }
+.up { color: var(--bull-ink); } .down { color: var(--bear-ink); } .flat { color: var(--muted); }
+.refs { display: grid; grid-template-columns: repeat(2, auto); gap: 1px 14px; margin: 0; }
+.refs div { display: flex; flex-direction: column; }
+.refs dt { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.refs dd { margin: 0; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.session { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.session .when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.session .date::before { content: '· '; }
+@media (max-width: 639px) { .session .when { flex-direction: column; align-items: flex-end; } .session .date::before { content: none; } }
+.phase {
+  display: inline-flex; align-items: center; gap: 7px; width: fit-content;
+  font-weight: 800; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink);
+  padding: 3px 9px; border-radius: 999px; background: var(--surface-2);
+}
+.phase::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.phase[data-phase="S1"]::before, .phase[data-phase="S2"]::before { background: var(--bull); box-shadow: 0 0 0 3px var(--bull-soft); }
+.phase[data-phase="PRE_OPEN"]::before, .phase[data-phase="PRE_CLOSE"]::before { background: var(--brass); box-shadow: 0 0 0 3px var(--brass-soft); }
+.phase[data-phase="CLOSED"]::before { background: var(--bear); }
+.clock { font-weight: 800; color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
+.controls { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; padding: 0 12px;
+  border-radius: var(--r); border: 1px solid var(--rule); background: var(--surface); cursor: pointer;
+  font-weight: 700; font-size: 12.5px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.icon { width: 34px; padding: 0; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; background: var(--surface); }
+.seg button { height: 32px; min-width: 40px; padding: 0 8px; border: 0; background: transparent; cursor: pointer; font-weight: 700; font-size: 12.5px; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.select { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); background: var(--surface); padding: 0 8px; font-weight: 700; font-size: 12.5px; text-transform: none; letter-spacing: 0; }
+.feed-status { font-size: 12px; font-weight: 600; color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- medan ---- */
+.stage {
+  grid-area: stage; display: flex; flex-direction: column; height: min(62vh, 560px); min-height: 330px;
+  border-radius: 10px; overflow: hidden; background: var(--bg); border: 1px solid var(--rule);
+}
+.view { position: relative; flex: 1 1 auto; min-height: 0; }
+#field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
+#field:active { cursor: grabbing; }
+.stamp {
+  position: absolute; top: 14px; right: 14px; pointer-events: none;
+  font-family: var(--font-display); font-size: 17px; letter-spacing: .14em; color: var(--brass);
+  border: 2px solid var(--brass); padding: 3px 10px 1px; border-radius: 4px; transform: rotate(-4deg); opacity: .9;
+}
+.auction {
+  position: absolute; left: 12px; top: 12px; max-width: calc(100% - 140px);
+  background: var(--surface); border: 1px solid var(--brass); border-radius: 8px; padding: 6px 10px;
+  font-size: 12px; box-shadow: var(--shadow);
+}
+.auction b { font-variant-numeric: tabular-nums; }
+.toasts {
+  position: absolute; top: 54px; left: 50%; transform: translateX(-50%); width: min(calc(100% - 24px), 470px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+}
+.toast {
+  display: flex; align-items: center; gap: 8px; max-width: 100%;
+  background: var(--surface); border: 1px solid var(--rule); box-shadow: var(--shadow); border-radius: 8px;
+  padding: 6px 11px; font-size: 13px; font-weight: 600; animation: toast-in .25s ease-out both;
+}
+.toast.out { animation: toast-out .4s ease-in both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-6px); } }
+.tag { flex: none; font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; }
+.tag.bull { background: var(--bull-soft); color: var(--bull-ink); }
+.tag.bear { background: var(--bear-soft); color: var(--bear-ink); }
+.tag.brass { background: var(--brass-soft); color: var(--brass); }
+.tag.neutral { background: var(--surface-2); color: var(--muted); }
+.legend {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 11.5px; color: var(--muted);
+  background: var(--surface); border-top: 1px solid var(--rule); padding: 6px 12px;
+}
+.legend .hint { margin-left: auto; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.legend i.line { width: 14px; height: 3px; border-radius: 2px; background: var(--brass); }
+.sw-bull { background: var(--bull); } .sw-bear { background: var(--bear); }
+.legend .hint { font-style: italic; }
+@media (max-width: 639px) { .stamp { font-size: 13px; top: 10px; right: 10px; padding: 2px 7px 0; } }
+.veil { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: var(--veil); }
+.card {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 18px 20px; width: 100%; max-width: 460px;
+}
+.card h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 400; font-size: 22px; letter-spacing: .04em; text-wrap: balance; }
+.card p { margin: 6px 0; }
+.card .eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--brass); }
+.card .verdict { font-size: 17px; font-weight: 800; }
+.card dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; margin: 12px 0; }
+.card dt { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.card dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.card .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
+.meter span { display: block; height: 100%; width: 0; background: var(--brass); }
+.glerr { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+
+/* ---- ringkasan ---- */
+.stats {
+  grid-area: stats; display: flex; flex-wrap: wrap; gap: 1px;
+  background: var(--rule); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden;
+}
+.cell { flex: 1 1 140px; background: var(--surface); padding: 8px 12px 9px; min-width: 0; position: relative; }
+.cell.wide { flex: 2 1 230px; }
+.cell h3 { margin: 0 0 3px; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cell b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cell small { display: block; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pbar { display: flex; gap: 2px; height: 10px; margin: 5px 0 4px; }
+.pbar span { display: block; height: 100%; transition: width .5s ease; min-width: 2px; }
+.pbar .b { background: var(--bull); border-radius: 3px 0 0 3px; }
+.pbar .s { background: var(--bear); border-radius: 0 3px 3px 0; }
+.plabels { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--muted); }
+.plabels b { font-size: 12px; color: var(--ink); }
+#spark { display: block; width: 100%; height: 48px; margin-top: 2px; cursor: crosshair; touch-action: pan-y; }
+.spark-tip {
+  position: absolute; top: 4px; right: 8px; font-size: 11px; font-weight: 700; color: var(--ink);
+  background: var(--surface-2); border-radius: 4px; padding: 1px 6px; pointer-events: none; font-variant-numeric: tabular-nums;
+}
+
+/* ---- panel samping ---- */
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px 12px; min-width: 0; }
+.book { grid-area: book; } .tape { grid-area: tape; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.panel-head h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 16px; letter-spacing: .05em; }
+.panel-head small { color: var(--muted); font-size: 11px; text-align: right; }
+.panel-head.sub { margin-top: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th { font-size: 9.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 4px 4px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 3px 4px; white-space: nowrap; }
+.ob th, .ob td { text-align: right; }
+.ob th.o, .ob td.o { text-align: left; }
+.ob td.px { font-weight: 800; }
+.ob td.bp { color: var(--bull-ink); }
+.ob td.op { color: var(--bear-ink); border-left: 1px solid var(--rule); }
+.ob th.op { border-left: 1px solid var(--rule); }
+.ob td.lot { position: relative; }
+.ob td.lot i { position: absolute; top: 2px; bottom: 2px; width: 0; border-radius: 2px; }
+.ob td.bl i { right: 0; background: var(--bull-soft); }
+.ob td.ol i { left: 0; background: var(--bear-soft); }
+.ob td.lot span { position: relative; }
+.ob td.f { color: var(--muted); font-size: 11.5px; }
+.ob tr.wb td.bl span, .ob tr.wo td.ol span { font-weight: 800; }
+.ob tr.wb td.bl span::after, .ob tr.wo td.ol span::before { content: 'T'; font-size: 9px; font-weight: 800; color: var(--brass); border: 1px solid var(--brass); border-radius: 3px; padding: 0 2px; margin: 0 3px; vertical-align: 1px; }
+.ob .lim { font-size: 9px; font-weight: 800; color: var(--brass); margin: 0 3px; letter-spacing: .05em; }
+.ob tfoot td { padding-top: 6px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 11.5px; }
+.note { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
+.rt-wrap { overflow: auto; max-height: 300px; }
+.rt th, .rt td { text-align: right; }
+.rt th:first-child, .rt td:first-child { text-align: left; }
+.rt td:first-child { color: var(--muted); }
+.rt td.p { font-weight: 800; }
+.act { font-size: 9.5px; font-weight: 800; letter-spacing: .06em; padding: 1px 5px; border-radius: 3px; }
+.act.B { background: var(--bull-soft); color: var(--bull-ink); }
+.act.S { background: var(--bear-soft); color: var(--bear-ink); }
+.act.A { background: var(--brass-soft); color: var(--brass); }
+.bs { color: var(--muted); }
+.bs .F { color: var(--brass); font-weight: 800; }
+tr.new { animation: flash 1.1s ease-out; }
+@keyframes flash { from { background: var(--surface-2); } }
+.kronik { list-style: none; margin: 0; padding: 0; font-size: 12.5px; max-height: 176px; overflow: auto; }
+.kronik li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px; padding: 4px 0; border-top: 1px dashed var(--rule); }
+.kronik time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.kronik .tag { margin-right: 6px; }
+.empty { color: var(--muted); font-size: 12.5px; padding: 8px 0; margin: 0; }
+.kronik:empty::before { content: 'Belum ada peristiwa penting.'; display: block; color: var(--muted); padding: 6px 0; }
+
+/* ---- lembar (bantuan, atur) ---- */
+.sheet { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
+.sheet .card { max-height: calc(100% - 32px); overflow: auto; max-width: 560px; }
+.sheet h2 { font-size: 24px; }
+.sheet ul { margin: 10px 0; padding-left: 18px; }
+.sheet li { margin: 6px 0; }
+.sheet label { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+.sheet input { height: 38px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--bg); padding: 0 10px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.sheet .fine { font-size: 12px; color: var(--muted); }
+.sheet a { color: var(--brass); }
+.kbd { font-size: 11px; border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; }
+
+/* Tablet: medan selebar layar, order book dan running trade berdampingan. */
+@media (min-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "bar bar" "stage stage" "stats stats" "book tape"; }
+}
+/* Desktop: satu layar penuh tanpa gulir. */
+@media (min-width: 1120px) and (min-height: 660px) {
+  html, body { height: 100%; overflow: hidden; }
+  .app {
+    height: 100%;
+    grid-template-columns: minmax(250px, 290px) minmax(0, 1fr) minmax(270px, 320px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "bar bar bar" "book stage tape" "book stats tape";
+  }
+  .stage { height: auto; min-height: 0; }
+  .panel { min-height: 0; display: flex; flex-direction: column; }
+  .rt-wrap { flex: 1 1 auto; max-height: none; }
+}
+/* Ponsel: isi bilah atas jadi item grid, kontrol pindah ke bawah medan. */
+@media (max-width: 639px) {
+  .app { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand session" "ticker ticker" "stage stage" "ctrl ctrl" "stats stats" "book book" "tape tape"; gap: 10px; }
+  .bar { display: contents; }
+  .brand { grid-area: brand; } .ticker { grid-area: ticker; }
+  .session { grid-area: session; align-items: flex-end; text-align: right; }
+  .controls { grid-area: ctrl; margin-left: 0; }
+  .refs { grid-template-columns: repeat(4, auto); }
+  .stage { height: min(66vh, 560px); }
+}
+@media (max-width: 520px) {
+  .last { font-size: 30px; }
+  .code { font-size: 23px; }
+  .controls { margin-left: 0; }
+  .legend { font-size: 10.5px; gap: 2px 10px; }
+  .legend .hint { display: none; }
+  .ob .f { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.out, tr.new { animation: none; }
+  .pbar span { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <span class="wordmark">Palagan<br>Saham</span>
+      <small>Bid vs offer · IDX</small>
+    </div>
+    <div class="ticker">
+      <button class="code" id="code-btn" type="button" title="Ganti kode dan harga acuan">SRSN</button>
+      <div class="quote">
+        <span class="issuer" id="issuer" hidden></span>
+        <span class="last" id="last">–</span>
+        <span class="chg flat" id="chg">belum ada transaksi</span>
+      </div>
+      <dl class="refs">
+        <div><dt>Acuan</dt><dd id="ref">–</dd></div>
+        <div><dt>ARA</dt><dd id="ara">–</dd></div>
+        <div><dt>ARB</dt><dd id="arb">–</dd></div>
+        <div><dt>Fraksi</dt><dd id="tick">–</dd></div>
+      </dl>
+    </div>
+    <div class="session">
+      <span class="phase" id="phase" data-phase="PRE_OPEN">–</span>
+      <span class="when"><span><span class="clock" id="clock">--:--:--</span> WIB</span><span class="date" id="date">–</span></span>
+    </div>
+    <div class="controls" id="sim-controls">
+      <label class="select" for="scenario"><span class="sr">Skenario</span>
+        <select id="scenario" title="Skenario simulasi"></select>
+      </label>
+      <div class="seg" role="group" aria-label="Kecepatan simulasi" id="speed">
+        <button type="button" data-speed="1">1×</button>
+        <button type="button" data-speed="10">10×</button>
+        <button type="button" data-speed="30">30×</button>
+        <button type="button" data-speed="60">60×</button>
+      </div>
+      <button class="btn icon" id="play" type="button" aria-label="Jeda simulasi"></button>
+      <button class="btn icon" id="restart" type="button" title="Ulang hari ini dari pre-opening" aria-label="Ulang hari ini dari pre-opening"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.3 4H1l2.6-3.2L6.2 6.5H4.3A4 4 0 1 0 8 4V2.5z"/></svg></button>
+      <button class="btn" id="help-btn" type="button">Cara baca</button>
+    </div>
+    <div class="controls" id="live-controls" hidden>
+      <span class="feed-status" id="feed-status">Menyambung ke feed…</span>
+      <button class="btn" id="help-btn-live" type="button">Cara baca</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="view" id="stage">
+      <canvas id="field" tabindex="0" aria-label="Medan tempur 3D: antrean beli di kiri, antrean jual di kanan, garis depan di harga berjalan"></canvas>
+      <div class="stamp" id="stamp" aria-hidden="true">SIMULASI</div>
+      <div class="auction" id="auction" hidden></div>
+      <div class="toasts" id="toasts" aria-live="polite"></div>
+      <div class="veil" id="veil" hidden></div>
+      <div class="glerr" id="glerr" hidden>
+        <p>Medan 3D butuh WebGL dan Three.js, dan keduanya tidak tersedia di peramban ini. Order book, running trade, dan ringkasan tetap berjalan.</p>
+      </div>
+    </div>
+    <div class="legend" id="legend">
+      <span><i class="sw-bull"></i>Bulls = antre beli (bid)</span>
+      <span><i class="sw-bear"></i>Bears = antre jual (offer)</span>
+      <span><i class="line"></i>Garis depan</span>
+      <span id="legend-scale">1 bidak = – lot</span>
+      <span class="hint" id="hint">Seret untuk memutar · cubit atau Ctrl+gulir untuk zoom</span>
+    </div>
+  </main>
+
+  <section class="stats" aria-label="Ringkasan pertempuran">
+    <div class="cell wide">
+      <h3>Tekanan 5 menit (lot)</h3>
+      <div class="pbar" aria-hidden="true"><span class="b" id="pb-b" style="width:50%"></span><span class="s" id="pb-s" style="width:50%"></span></div>
+      <div class="plabels"><span>HAKA <b id="pk-b">–</b> <span id="pl-b"></span></span><span><span id="pl-s"></span> <b id="pk-s">–</b> HAKI</span></div>
+      <small id="day-ah">–</small>
+    </div>
+    <div class="cell">
+      <h3>Net asing</h3>
+      <b id="nf">–</b>
+      <small id="nf-sub">–</small>
+    </div>
+    <div class="cell">
+      <h3>Volume · Nilai</h3>
+      <b id="vol">–</b>
+      <small id="val">–</small>
+    </div>
+    <div class="cell">
+      <h3>Rentang hari ini</h3>
+      <b id="range">–</b>
+      <small id="open">–</small>
+    </div>
+    <div class="cell wide">
+      <h3>Harga hari ini</h3>
+      <canvas id="spark" aria-label="Grafik harga sejak pembukaan, garis putus-putus adalah harga acuan"></canvas>
+      <span class="spark-tip" id="spark-tip" hidden></span>
+    </div>
+  </section>
+
+  <aside class="panel book" aria-labelledby="book-h">
+    <div class="panel-head"><h2 id="book-h">Order book</h2><small>10 level · lot</small></div>
+    <table class="ob">
+      <thead><tr><th class="f">Freq</th><th>Lot</th><th>Bid</th><th class="o op">Offer</th><th class="o">Lot</th><th class="o f">Freq</th></tr></thead>
+      <tbody id="ob-body"></tbody>
+      <tfoot><tr><td colspan="3" id="ob-tb">–</td><td colspan="3" class="o" id="ob-to">–</td></tr></tfoot>
+    </table>
+    <p class="note"><b>T</b> = tembok, antrean minimal 6× median 10 level teratas. Satu baris medan = satu fraksi harga.</p>
+  </aside>
+
+  <aside class="panel tape" aria-labelledby="rt-h">
+    <div class="panel-head"><h2 id="rt-h">Running trade</h2><small>B·S: F asing, D lokal</small></div>
+    <div class="rt-wrap">
+      <table class="rt">
+        <thead><tr><th>Waktu</th><th>Harga</th><th>Lot</th><th>Aksi</th><th>B·S</th></tr></thead>
+        <tbody id="rt-body"></tbody>
+      </table>
+      <p class="empty" id="rt-empty">Belum ada transaksi. Saat pre-opening order cuma dikumpulkan; pencocokan pertama terjadi pukul 09:00.</p>
+    </div>
+    <div class="panel-head sub"><h2>Kronik</h2><small>peristiwa penting</small></div>
+    <ol class="kronik" id="kronik"></ol>
+  </aside>
+</div>
+
+<div class="sheet" id="help" hidden role="dialog" aria-modal="true" aria-labelledby="help-h">
+  <div class="card">
+    <span class="eyebrow">Cara baca</span>
+    <h2 id="help-h">Order book jadi medan tempur</h2>
+    <ul>
+      <li><b>Satu baris medan = satu fraksi harga.</b> Harga naik ke kanan. Batas fraksi BEI ikut dipakai: untuk SRSN di bawah Rp200 satu langkah = Rp1, di atas Rp200 jadi Rp2 (garis kuningan menandai batasnya).</li>
+      <li><b>Bidak hijau bertanduk</b> berdiri di harga bid, sebanyak lot yang antre. <b>Bidak merah bertelinga</b> berdiri di harga offer. Skalanya di pojok kiri bawah.</li>
+      <li><b>Garis depan</b> ada di antara bid dan offer terbaik. Bendera di belakang medan menunjukkan harga transaksi terakhir.</li>
+      <li><b>Tembakan dari kiri = HAKA</b> (pembeli menghajar offer). <b>Dari kanan = HAKI</b> (penjual menghajar bid). Peluru besar berarti transaksi jumbo, kira-kira Rp500 juta ke atas sekali hajar.</li>
+      <li><b>Tembok batu</b> = antrean tebal. Disebut jebol kalau habis dimakan transaksi, ditarik kalau dibatalkan.</li>
+      <li><b>Benteng ARA dan ARB</b> = batas auto rejection dari harga acuan. Order di luar batas ini ditolak bursa.</li>
+      <li><b>Pre-opening dan pre-closing</b> = call auction. Kedua pasukan berbaur, lalu semua yang cocok dieksekusi di satu harga (IEP). Istirahat siang = gencatan senjata.</li>
+    </ul>
+    <p class="fine">Data di halaman ini <b>simulasi</b>: kode saham cuma label, harganya dibangkitkan dari harga acuan yang kamu isi. Yang asli adalah aturannya: lot 100 lembar, fraksi harga, ARA/ARB periode 28 Sep–31 Des 2026 (ARB 15%; mulai 2027 ARB sama dengan ARA), dan jadwal sesi BEI. Untuk data live perlu feed order book berlisensi; caranya ada di README proyek. Bukan rekomendasi jual-beli.</p>
+    <p class="fine">Terinspirasi <a href="https://newhedge.io/bitcoin/battlefield" target="_blank" rel="noopener">Bitcoin Battlefield</a> dari Newhedge. Pintasan: <span class="kbd">Spasi</span> jeda, <span class="kbd">←</span><span class="kbd">→</span> putar, <span class="kbd">+</span><span class="kbd">−</span> zoom.</p>
+    <div class="row"><button class="btn primary" type="button" data-close>Mengerti</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="setup" hidden role="dialog" aria-modal="true" aria-labelledby="setup-h">
+  <form class="card" id="setup-form" novalidate>
+    <span class="eyebrow">Atur medan</span>
+    <h2 id="setup-h">Saham dan harga acuan</h2>
+    <label for="f-code">Kode saham (4 huruf)
+      <input id="f-code" name="code" maxlength="4" autocomplete="off" spellcheck="false">
+    </label>
+    <label for="f-prev">Harga acuan, yaitu penutupan hari sebelumnya (Rp)
+      <input id="f-prev" name="prev" type="number" min="1" max="1000000" step="1" inputmode="numeric">
+    </label>
+    <p class="fine" id="setup-msg">Kode hanya label. Harga berjalan dibangkitkan simulator dari harga acuan ini, bukan diambil dari pasar. Bawaan: SRSN, acuan Rp132 (penutupan 2 Okt 2026).</p>
+    <div class="row">
+      <button class="btn primary" type="submit">Mulai hari baru</button>
+      <button class="btn" type="button" data-close>Batal</button>
+    </div>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="engine.js"></script>
+<script>
+(() => {
+  'use strict';
+  const P = window.Palagan;
+  const $ = (id) => document.getElementById(id);
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  // ------------------------------------------------------------ format angka
+  const nf0 = new Intl.NumberFormat('id-ID');
+  const nf1 = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fp = (p) => (p == null ? '–' : nf0.format(p));
+  function fLot(l) {
+    const a = Math.abs(l);
+    if (a >= 1e6) return nf1.format(l / 1e6) + ' jt';
+    if (a >= 1e5) return nf1.format(l / 1e3) + ' rb';
+    return nf0.format(Math.round(l));
+  }
+  function fRp(v) {
+    const a = Math.abs(v), s = v < 0 ? '−' : '';
+    if (a >= 1e12) return s + 'Rp' + nf1.format(a / 1e12) + ' T';
+    if (a >= 1e9) return s + 'Rp' + nf1.format(a / 1e9) + ' M';
+    if (a >= 1e6) return s + 'Rp' + nf1.format(a / 1e6) + ' jt';
+    return s + 'Rp' + nf0.format(Math.round(a));
+  }
+  const sign = (x) => (x > 0 ? '+' : x < 0 ? '−' : '');
+  const fClock = (c) => {
+    c = Math.max(0, Math.floor(c));
+    return [Math.floor(c / 3600), Math.floor((c % 3600) / 60), c % 60].map((x) => String(x).padStart(2, '0')).join(':');
+  };
+  const dirClass = (p, ref) => (p > ref ? 'up' : p < ref ? 'down' : 'flat');
+
+  // ---------------------------------------------- tanggal bursa (WIB, Senin–Jumat)
+  const DAY = 864e5;
+  const wibNow = () => new Date(Date.now() + 7 * 3600e3);
+  function tradingDay(d) { while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d = new Date(d.getTime() + DAY); return d; }
+  const nextTradingDay = (d) => tradingDay(new Date(d.getTime() + DAY));
+  const isoOf = (d) => d.toISOString().slice(0, 10);
+  const dateLabel = (d) => d.toLocaleDateString('id-ID', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+  // --------------------------------------------- preferensi per penonton
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('palagan2:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('palagan2:' + k, JSON.stringify(v)); } catch (e) { /* penyimpanan tidak tersedia */ } },
+  };
+  const cleanCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  // Bawaan: SRSN (Indo Acidatama) dengan harga acuan penutupan 2 Okt 2026 (Rp132, dari hasil pencarian web).
+  const DEFAULT_CODE = 'SRSN', DEFAULT_PREV = 132;
+  const cfg = {
+    code: cleanCode(store.get('code', DEFAULT_CODE)) || DEFAULT_CODE,
+    prev: P.floorTick(clamp(Math.round(+store.get('prev', DEFAULT_PREV)) || DEFAULT_PREV, 1, 1e6)),
+    scenario: P.SCENARIOS[store.get('scenario', 'normal')] ? store.get('scenario', 'normal') : 'normal',
+    speed: [1, 10, 30, 60].includes(store.get('speed', 10)) ? store.get('speed', 10) : 10,
+  };
+
+  // -------------------------------------------------------------- warna tema
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (n) => cs.getPropertyValue(n).trim();
+    return {
+      bg: v('--bg'), surface: v('--surface'), surface2: v('--surface-2'), ink: v('--ink'), muted: v('--muted'), rule: v('--rule'),
+      brass: v('--brass'), bull: v('--bull'), bear: v('--bear'), bullInk: v('--bull-ink'), bearInk: v('--bear-ink'),
+      field: v('--field'), stone: v('--stone'), dark: /dark/.test(cs.colorScheme || ''),
+    };
+  }
+  let tok = readTokens();
+
+  // ================================================================= MEDAN 3D
+  const SP = 1;          // jarak antarbaris = satu fraksi
+  const W = 7;           // lebar medan
+  const FILES = 18;      // bidak per saf
+  const MAXU = 36;       // dua saf per baris
+  const ZS = (W - 0.9) / (FILES - 1);
+  const CAP = 1100;
+  const hash = (a, b) => { const h = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return h - Math.floor(h); };
+  const niceCeil = (x) => {
+    if (!(x > 1)) return 1;
+    const e = Math.pow(10, Math.floor(Math.log10(x)));
+    for (const m of [1, 2, 5, 10]) if (m * e >= x) return m * e;
+    return 10 * e;
+  };
+
+  function mergeGeos(parts) {
+    let n = 0;
+    const list = parts.map(([g, m]) => { const ng = g.index ? g.toNonIndexed() : g; ng.applyMatrix4(m); n += ng.attributes.position.count; return ng; });
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3);
+    let o = 0;
+    for (const g of list) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    out.computeBoundingSphere();
+    return out;
+  }
+  const M4 = (x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
+
+  // Bidak: banteng bertanduk, beruang bertelinga. Bentuk ikut membedakan kubu, bukan cuma warna.
+  function pawnGeo(kind) {
+    const parts = [
+      [new THREE.CylinderGeometry(0.105, 0.125, 0.05, 10), M4(0, 0.025, 0)],
+      [new THREE.CylinderGeometry(0.05, 0.095, 0.24, 10), M4(0, 0.17, 0)],
+      [new THREE.SphereGeometry(0.074, 10, 7), M4(0, 0.335, 0)],
+    ];
+    if (kind === 'bull') {
+      parts.push([new THREE.ConeGeometry(0.022, 0.12, 6), M4(0.074, 0.38, 0, 0, 0, -0.95)]);
+      parts.push([new THREE.ConeGeometry(0.022, 0.12, 6), M4(-0.074, 0.38, 0, 0, 0, 0.95)]);
+    } else {
+      parts.push([new THREE.SphereGeometry(0.032, 7, 5), M4(0.05, 0.398, 0)]);
+      parts.push([new THREE.SphereGeometry(0.032, 7, 5), M4(-0.05, 0.398, 0)]);
+    }
+    return mergeGeos(parts);
+  }
+  function fortGeo() {
+    const parts = [[new THREE.BoxGeometry(0.55, 1.1, W + 1.6), M4(0, 0.55, 0)]];
+    for (let z = -(W / 2 + 0.55); z <= W / 2 + 0.56; z += 0.7) parts.push([new THREE.BoxGeometry(0.58, 0.26, 0.36), M4(0, 1.23, z)]);
+    for (const s of [-1, 1]) {
+      parts.push([new THREE.CylinderGeometry(0.36, 0.42, 1.6, 12), M4(0, 0.8, s * (W / 2 + 0.95))]);
+      parts.push([new THREE.ConeGeometry(0.48, 0.5, 12), M4(0, 1.85, s * (W / 2 + 0.95))]);
+    }
+    return mergeGeos(parts);
+  }
+
+  class Field {
+    constructor(canvas) {
+      const r = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }));
+      r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      r.shadowMap.enabled = true;
+      r.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.aniso = Math.min(8, r.capabilities.getMaxAnisotropy());
+      this.scene = new THREE.Scene();
+      this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
+      this.cam = { yaw: 0, pitch: 0.68, zoom: 1, tx: 0, shake: 0 };
+      this.rows = new Map();
+      this.texCache = new Map();
+      this.flying = [];
+      this.parts = [];
+      this.unitLots = 0;
+      this.origin = 0;
+      this.frameNo = 0;
+      this.now = 0;
+      this.fx = null;
+      this.scaleT = 0;
+      this.wheelZoom = false;
+      this.w = 1; this.h = 1;
+      this.build();
+      this.bindControls(canvas);
+    }
+
+    build() {
+      const s = this.scene, white = new THREE.Color(1, 1, 1);
+      this.hemi = new THREE.HemisphereLight(0xffffff, 0x777766, 0.75);
+      s.add(this.hemi);
+      const sun = (this.sun = new THREE.DirectionalLight(0xffffff, 0.85));
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1536, 1536);
+      Object.assign(sun.shadow.camera, { left: -17, right: 17, top: 13, bottom: -13, near: 1, far: 90 });
+      sun.shadow.bias = -0.0006;
+      sun.shadow.normalBias = 0.02;
+      s.add(sun, sun.target);
+      s.fog = new THREE.Fog(0xffffff, 20, 50);
+
+      const grain = this.grainTexture();
+      const tGround = grain.clone(); tGround.needsUpdate = true; tGround.repeat.set(800 / 5, 120 / 5);
+      const tStrip = grain.clone(); tStrip.needsUpdate = true; tStrip.repeat.set(800 / 4, (W + 0.4) / 4);
+      this.groundMat = new THREE.MeshLambertMaterial({ map: tGround });
+      this.fieldMat = new THREE.MeshLambertMaterial({ map: tStrip });
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(800, 120), this.groundMat);
+      ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(800, W + 0.4), this.fieldMat);
+      strip.rotation.x = -Math.PI / 2; strip.position.y = 0.004; strip.receiveShadow = true; s.add(strip);
+
+      this.lines = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 90);
+      this.lines.frustumCulled = false;
+      for (let i = 0; i < 90; i++) this.lines.setColorAt(i, white);
+      s.add(this.lines);
+
+      this.rulers = [];
+      for (let i = 0; i < 26; i++) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+        m.rotation.x = -Math.PI / 2; m.position.y = 0.014; m.visible = false; m.renderOrder = 2;
+        s.add(m); this.rulers.push(m);
+      }
+
+      this.bullMat = new THREE.MeshLambertMaterial();
+      this.bearMat = new THREE.MeshLambertMaterial();
+      this.bulls = new THREE.InstancedMesh(pawnGeo('bull'), this.bullMat, CAP);
+      this.bears = new THREE.InstancedMesh(pawnGeo('bear'), this.bearMat, CAP);
+      const c = new THREE.Color();
+      for (const u of [this.bulls, this.bears]) {
+        for (let i = 0; i < CAP; i++) u.setColorAt(i, c.setScalar(0.82 + 0.18 * hash(i, 3)));
+        u.castShadow = true; u.frustumCulled = false; u.count = 0; s.add(u);
+      }
+
+      this.walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), 24);
+      for (let i = 0; i < 24; i++) this.walls.setColorAt(i, white);
+      this.walls.castShadow = true; this.walls.receiveShadow = true; this.walls.frustumCulled = false; this.walls.count = 0;
+      s.add(this.walls);
+
+      this.stoneMat = new THREE.MeshLambertMaterial();
+      const fg = fortGeo();
+      this.fortA = new THREE.Mesh(fg, this.stoneMat);
+      this.fortB = new THREE.Mesh(fg, this.stoneMat);
+      for (const f of [this.fortA, this.fortB]) { f.castShadow = true; f.receiveShadow = true; s.add(f); }
+      this.plaqueA = this.sprite(); this.plaqueB = this.sprite();
+
+      this.frontMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95 });
+      this.front = new THREE.Mesh(new THREE.PlaneGeometry(0.08, W + 1.2), this.frontMat);
+      this.front.rotation.x = -Math.PI / 2; this.front.position.y = 0.02; s.add(this.front);
+      this.curtainMat = new THREE.MeshBasicMaterial({ map: this.fadeTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: 0.42 });
+      this.curtain = new THREE.Mesh(new THREE.PlaneGeometry(W + 1.2, 1.5), this.curtainMat);
+      this.curtain.rotation.y = Math.PI / 2; this.curtain.position.y = 0.75; s.add(this.curtain);
+
+      this.poleMat = new THREE.MeshLambertMaterial();
+      this.pole = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 2.1, 6), this.poleMat);
+      this.pole.position.set(0, 1.05, -(W / 2 + 0.45)); this.pole.castShadow = true; s.add(this.pole);
+      this.flag = this.sprite();
+
+      this.tags = [];
+      for (let i = 0; i < 8; i++) this.tags.push(this.sprite());
+
+      this.shells = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshBasicMaterial(), 140);
+      for (let i = 0; i < 140; i++) this.shells.setColorAt(i, white);
+      this.shells.frustumCulled = false; this.shells.count = 0; s.add(this.shells);
+
+      this.bits = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 1000);
+      for (let i = 0; i < 1000; i++) this.bits.setColorAt(i, white);
+      this.bits.frustumCulled = false; this.bits.count = 0; s.add(this.bits);
+
+      this.rings = [];
+      for (let i = 0; i < 8; i++) {
+        const m = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 48), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0 }));
+        m.rotation.x = -Math.PI / 2; m.position.y = 0.03; m.visible = false; s.add(m);
+        this.rings.push({ m, t: 0, dur: 1, max: 1, on: false });
+      }
+    }
+
+    sprite() {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false, fog: false }));
+      sp.renderOrder = 8; sp.visible = false; this.scene.add(sp);
+      return sp;
+    }
+
+    grainTexture() {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d');
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
+      for (let i = 0; i < 1400; i++) {
+        const v = 200 + Math.floor(Math.random() * 55);
+        g.fillStyle = `rgb(${v},${v},${v})`;
+        g.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 1.6, 1 + Math.random() * 1.6);
+      }
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = this.aniso;
+      return t;
+    }
+    fadeTexture() {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 64;
+      const g = c.getContext('2d'), gr = g.createLinearGradient(0, 64, 0, 0);
+      gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 4, 64);
+      return new THREE.CanvasTexture(c);
+    }
+
+    // Tekstur teks dengan cache; dibuang semua saat tema atau font berganti.
+    tex(key, w, h, draw) {
+      let e = this.texCache.get(key);
+      if (e) return e;
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      draw(c.getContext('2d'), w, h);
+      const t = new THREE.CanvasTexture(c);
+      t.anisotropy = this.aniso;
+      e = { t, aspect: w / h };
+      this.texCache.set(key, e);
+      if (this.texCache.size > 500) {
+        const k0 = this.texCache.keys().next().value;
+        this.texCache.get(k0).t.dispose(); this.texCache.delete(k0);
+      }
+      return e;
+    }
+    flushText() { for (const e of this.texCache.values()) e.t.dispose(); this.texCache.clear(); this.labelKey = {}; }
+
+    pill(text, sub, { fg, bg, border, font = 'ui', big = false } = {}) {
+      const key = ['pill', text, sub, fg, bg, border, font, big].join('|');
+      return this.tex(key, 512, sub ? 192 : 128, (g, w, h) => {
+        const face = font === 'stencil' ? '"Saira Stencil One", Impact, sans-serif' : '"Plus Jakarta Sans", system-ui, sans-serif';
+        const px = big ? 84 : 56;
+        g.font = `${font === 'stencil' ? 400 : 800} ${px}px ${face}`;
+        const tw = g.measureText(text).width;
+        let sw = 0;
+        if (sub) { g.font = `700 38px "Plus Jakarta Sans", system-ui, sans-serif`; sw = g.measureText(sub).width; }
+        const bw = Math.min(w - 8, Math.max(tw, sw) + 56), bh = h - 12, x0 = (w - bw) / 2, y0 = 6;
+        g.fillStyle = bg; g.strokeStyle = border; g.lineWidth = 5;
+        g.beginPath(); g.roundRect ? g.roundRect(x0, y0, bw, bh, 22) : g.rect(x0, y0, bw, bh); g.fill(); g.stroke();
+        g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = `${font === 'stencil' ? 400 : 800} ${px}px ${face}`;
+        g.fillText(text, w / 2, sub ? y0 + bh * 0.38 : h / 2 + 2);
+        if (sub) { g.font = `700 38px "Plus Jakarta Sans", system-ui, sans-serif`; g.globalAlpha = 0.85; g.fillText(sub, w / 2, y0 + bh * 0.76); }
+      });
+    }
+    setSprite(sp, e, height, x, y, z) {
+      if (sp.material.map !== e.t) { sp.material.map = e.t; sp.material.needsUpdate = true; }
+      sp.scale.set(height * e.aspect, height, 1);
+      sp.position.set(x, y, z);
+      sp.visible = true;
+    }
+
+    setTheme(t) {
+      const C = (h) => new THREE.Color(h);
+      this.t = t;
+      this.scene.background = C(t.bg);
+      this.scene.fog.color = C(t.bg);
+      this.groundMat.color = C(t.field).lerp(C(t.bg), 0.45);
+      this.fieldMat.color = C(t.field);
+      this.minorC = C(t.field).lerp(C(t.ink), t.dark ? 0.32 : 0.26);
+      this.majorC = C(t.field).lerp(C(t.ink), t.dark ? 0.6 : 0.55);
+      this.brassC = C(t.brass);
+      this.bullMat.color = C(t.bull);
+      this.bearMat.color = C(t.bear);
+      this.stoneMat.color = C(t.stone);
+      this.wallB = C(t.stone).lerp(C(t.bull), 0.35);
+      this.wallS = C(t.stone).lerp(C(t.bear), 0.35);
+      this.frontMat.color = C(t.brass);
+      this.curtainMat.color = C(t.brass);
+      this.poleMat.color = C(t.ink);
+      this.bullC = C(t.bull); this.bearC = C(t.bear); this.dustC = C(t.field).lerp(C(t.ink), 0.2); this.stoneC = C(t.stone);
+      this.hemi.color = C(t.dark ? '#c9d0c0' : '#ffffff');
+      this.hemi.groundColor = C(t.field).lerp(C(t.bg), 0.5);
+      this.hemiBase = t.dark ? 0.62 : 0.78;
+      this.sunBase = t.dark ? 0.62 : 0.82;
+      this.flushText();
+      if (this.m) this.placeForts();
+    }
+
+    setMarket(m) {
+      this.m = m;
+      this.origin = P.priceIndex(m.prev);
+      this.rows.clear();
+      this.flying.length = 0;
+      this.parts.length = 0;
+      this.unitLots = 0;
+      this.updateScale(true);
+      this.snapNext = true;
+      this.fx = null;
+      this.cam.tx = this.frontX();
+      this.placeForts();
+    }
+    X(p) { return (P.priceIndex(p) - this.origin) * SP; }
+
+    placeForts() {
+      const m = this.m, t = this.t;
+      this.fortA.position.x = this.X(m.limits.ara) + 0.85;
+      this.fortB.position.x = this.X(m.limits.arb) - 0.85;
+      const style = { fg: t.surface, bg: t.brass, border: t.brass, font: 'stencil' };
+      this.setSprite(this.plaqueA, this.pill('ARA ' + fp(m.limits.ara), null, style), 0.62, this.fortA.position.x, 2.75, 0);
+      this.setSprite(this.plaqueB, this.pill('ARB ' + fp(m.limits.arb), null, style), 0.62, this.fortB.position.x, 2.75, 0);
+    }
+
+    frontX() {
+      const m = this.m;
+      if (!m) return 0;
+      if (P.isAuction(m.phase)) { const i = m.computeIEP(); if (i.p !== null) return this.X(i.p); }
+      const bb = m.bids.best(), bo = m.offers.best();
+      if (bb !== null && bo !== null) return bb < bo ? (this.X(bb) + this.X(bo)) / 2 : this.X(bb);
+      if (bb !== null) return this.X(bb) + 0.5;
+      if (bo !== null) return this.X(bo) - 0.5;
+      return this.X(m.last != null ? m.last : m.prev);
+    }
+
+    // Skala bidak: persentil 80 dari 12 level teratas per sisi dibagi 14, dibulatkan ke 1-2-5.
+    updateScale(force) {
+      const m = this.m, lots = [];
+      for (const S of [m.bids, m.offers]) for (let i = 0; i < Math.min(12, S.levels.length); i++) lots.push(S.levels[i].lot);
+      if (!lots.length) { if (force || !this.unitLots) this.unitLots = niceCeil(m.baseLot * 4); return; }
+      lots.sort((a, b) => a - b);
+      const want = niceCeil(lots[Math.floor(lots.length * 0.8)] / 14);
+      if (force || !this.unitLots || want > this.unitLots * 1.9 || want < this.unitLots / 2.6) this.unitLots = want;
+    }
+
+    bindControls(cv) {
+      const ptrs = new Map();
+      let pinch0 = 0, zoom0 = 1;
+      const spread = () => { const a = [...ptrs.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1; };
+      cv.addEventListener('pointerdown', (e) => {
+        ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (e.pointerType === 'mouse') cv.setPointerCapture(e.pointerId);
+        if (ptrs.size === 2) { pinch0 = spread(); zoom0 = this.cam.zoom; }
+        this.onInteract && this.onInteract();
+      });
+      cv.addEventListener('pointermove', (e) => {
+        const p = ptrs.get(e.pointerId);
+        if (!p) return;
+        const dx = e.clientX - p.x, dy = e.clientY - p.y;
+        p.x = e.clientX; p.y = e.clientY;
+        if (ptrs.size === 1) {
+          this.cam.yaw = clamp(this.cam.yaw - dx * 0.006, -1.15, 1.15);
+          if (e.pointerType === 'mouse') this.cam.pitch = clamp(this.cam.pitch + dy * 0.004, 0.3, 1.3);
+        } else if (ptrs.size === 2) this.cam.zoom = clamp((zoom0 * spread()) / pinch0, 0.55, 1.9);
+      });
+      const up = (e) => ptrs.delete(e.pointerId);
+      cv.addEventListener('pointerup', up);
+      cv.addEventListener('pointercancel', up);
+      cv.addEventListener('wheel', (e) => {
+        if (!this.wheelZoom && !e.ctrlKey) return;
+        e.preventDefault();
+        this.cam.zoom = clamp(this.cam.zoom * Math.exp(-e.deltaY * 0.0012), 0.55, 1.9);
+      }, { passive: false });
+      cv.addEventListener('dblclick', () => this.resetView());
+      cv.addEventListener('keydown', (e) => {
+        const c = this.cam;
+        if (e.key === 'ArrowLeft') c.yaw = clamp(c.yaw + 0.12, -1.15, 1.15);
+        else if (e.key === 'ArrowRight') c.yaw = clamp(c.yaw - 0.12, -1.15, 1.15);
+        else if (e.key === 'ArrowUp') c.pitch = clamp(c.pitch + 0.08, 0.3, 1.3);
+        else if (e.key === 'ArrowDown') c.pitch = clamp(c.pitch - 0.08, 0.3, 1.3);
+        else if (e.key === '+' || e.key === '=') c.zoom = clamp(c.zoom * 1.12, 0.55, 1.9);
+        else if (e.key === '-') c.zoom = clamp(c.zoom / 1.12, 0.55, 1.9);
+        else if (e.key === '0') this.resetView();
+        else return;
+        e.preventDefault();
+      });
+    }
+    basePitch() { return this.w / this.h < 1.05 ? 0.92 : 0.68; }
+    resetView() { Object.assign(this.cam, { yaw: 0, pitch: this.basePitch(), zoom: 1 }); }
+
+    resize(w, h) {
+      this.w = Math.max(1, w); this.h = Math.max(1, h);
+      this.renderer.setSize(this.w, this.h, false);
+      this.camera.aspect = this.w / this.h;
+      this.camera.updateProjectionMatrix();
+    }
+
+    // ---------------------------------------------------------- peristiwa
+    fire(side, price, lot, opts = {}) {
+      if (this.flying.length >= 136) return;
+      const tx = this.X(price), U = this.unitLots || 1;
+      const dir = side === 'B' ? 1 : -1;
+      const z = (Math.random() - 0.5) * (W - 1.4);
+      const dist = 2.2 + Math.random() * 2.2 + (opts.big ? 2.2 : 0);
+      const dur = opts.big ? 0.8 : 0.3 + 0.055 * dist;
+      this.flying.push({
+        x0: tx - dir * dist, y0: 0.42, z0: z + (Math.random() - 0.5) * 1.6,
+        x1: tx - dir * 0.12, y1: 0.18, z1: z,
+        t: 0, dur, arc: 0.5 + dist * 0.2 + (opts.big ? 1.2 : 0),
+        size: opts.big ? 0.19 : 0.05 + 0.045 * Math.min(2.6, Math.log10(1 + lot / U)),
+        c: opts.auction ? this.brassC : side === 'B' ? this.bullC : this.bearC,
+        hit: opts.auction ? this.brassC : side === 'B' ? this.bearC : this.bullC,
+        big: !!opts.big, lot,
+      });
+      const st = this.rows.get((side === 'B' ? 'S' : 'B') + price);
+      if (st) st.hold = Math.max(st.hold, this.now + dur);
+    }
+    onTrades(trades) {
+      if (!this.m || !trades.length) return;
+      const groups = new Map();
+      for (const tr of trades) {
+        const k = tr.side + tr.price, g = groups.get(k);
+        if (g) g.lot += tr.lot; else groups.set(k, { side: tr.side, price: tr.price, lot: tr.lot });
+      }
+      let n = 0;
+      for (const g of groups.values()) {
+        if (n++ > 14) break;
+        if (g.side === 'A') {
+          for (let i = 0; i < 9; i++) { this.fire('B', g.price, g.lot / 18, { auction: true }); this.fire('S', g.price, g.lot / 18, { auction: true }); }
+          this.ring(this.X(g.price), this.brassC, 3.2);
+        } else this.fire(g.side, g.price, g.lot);
+      }
+    }
+    onEvents(evs) {
+      if (!this.m) return;
+      for (const e of evs) {
+        if (e.kind === 'big' && e.side !== 'A') this.fire(e.side, e.to, e.lot, { big: true });
+        else if (e.kind === 'ara') this.ring(this.X(e.p) + 0.5, this.brassC, 4);
+        else if (e.kind === 'arb') this.ring(this.X(e.p) - 0.5, this.brassC, 4);
+        else if (e.kind === 'wallGone' && e.how === 'jebol') this.burst(this.X(e.p) + (e.side === 'B' ? 0.43 : -0.43), 0.4, this.stoneC, 30, 2.8);
+        else if (e.kind === 'close' && e.p) this.ring(this.X(e.p), this.brassC, 3.5);
+      }
+    }
+    ring(x, color, max) {
+      const r = this.rings.find((q) => !q.on) || this.rings[0];
+      Object.assign(r, { t: 0, dur: 0.9, max, on: true });
+      r.m.position.x = x; r.m.position.z = 0; r.m.material.color = color; r.m.visible = true;
+    }
+    burst(x, y, color, count, power) {
+      const n = reduceMotion ? Math.ceil(count / 3) : count;
+      for (let i = 0; i < n && this.parts.length < 1000; i++) {
+        const a = Math.random() * Math.PI * 2, sp = power * (0.35 + Math.random() * 0.65);
+        this.parts.push({
+          x, y, z: (Math.random() - 0.5) * (W - 1),
+          vx: Math.cos(a) * sp * 0.6, vy: 1.4 + Math.random() * power, vz: Math.sin(a) * sp * 0.6,
+          life: 0.55 + Math.random() * 0.5, max: 1, s: 0.05 + Math.random() * 0.05, c: color,
+        });
+        this.parts[this.parts.length - 1].max = this.parts[this.parts.length - 1].life;
+      }
+    }
+    impact(f) {
+      const U = this.unitLots || 1;
+      const count = f.big ? 42 : 4 + Math.min(16, Math.round(Math.log2(1 + f.lot / U) * 3));
+      const n = reduceMotion ? Math.ceil(count / 3) : count;
+      for (let i = 0; i < n && this.parts.length < 1000; i++) {
+        const a = Math.random() * Math.PI * 2, sp = (f.big ? 3.2 : 1.6) * (0.3 + Math.random() * 0.7);
+        const life = 0.45 + Math.random() * 0.5;
+        this.parts.push({
+          x: f.x1, y: 0.2, z: f.z1, vx: Math.cos(a) * sp, vy: 1 + Math.random() * (f.big ? 4 : 2.2), vz: Math.sin(a) * sp,
+          life, max: life, s: 0.035 + Math.random() * 0.04, c: Math.random() < 0.65 ? f.hit : this.dustC,
+        });
+      }
+      if (f.big) { this.ring(f.x1, f.c, 2.6); if (!reduceMotion) this.cam.shake = 1; }
+    }
+
+    // ------------------------------------------------------------ per frame
+    frame(dt, time) {
+      if (!this.m) { this.renderer.render(this.scene, this.camera); return; }
+      this.now = time;
+      this.scaleT -= dt;
+      if (this.scaleT <= 0) { this.updateScale(false); this.scaleT = 0.5; }
+      this.updateRows(dt);
+      this.updateCamera(dt);
+      this.writeTerrain();
+      this.writeUnits(time);
+      this.writeWalls();
+      this.writeTags();
+      this.updateFx(dt);
+      this.renderer.render(this.scene, this.camera);
+    }
+
+    updateRows(dt) {
+      const m = this.m, frame = ++this.frameNo, U = this.unitLots || 1;
+      for (const side of ['B', 'S']) {
+        const lv = (side === 'B' ? m.bids : m.offers).levels;
+        for (let i = 0; i < Math.min(lv.length, 26); i++) {
+          const L = lv[i], key = side + L.p;
+          let st = this.rows.get(key);
+          if (!st) { st = { side, p: L.p, x: this.X(L.p), shown: 0, target: 0, hold: 0, wallH: 0, lot: 0, seen: 0 }; this.rows.set(key, st); }
+          st.target = Math.min(MAXU, Math.ceil(L.lot / U));
+          st.lot = L.lot; st.seen = frame; st.wall = m.isWall(side, L.p);
+        }
+      }
+      const k = 1 - Math.exp(-dt * 6);
+      for (const [key, st] of this.rows) {
+        if (st.seen !== frame) { st.target = 0; st.wall = false; }
+        if (this.snapNext) { st.shown = st.target; st.wallH = st.wall ? 1 : 0; continue; }
+        if (st.target > st.shown) st.shown += (st.target - st.shown) * k;
+        else if (this.now >= st.hold) st.shown += (st.target - st.shown) * k * 1.4;
+        if (Math.abs(st.target - st.shown) < 0.02) st.shown = st.target;
+        st.wallH += ((st.wall ? 1 : 0) - st.wallH) * k;
+        if (st.target === 0 && st.shown < 0.02 && st.wallH < 0.02) this.rows.delete(key);
+      }
+      this.snapNext = false;
+    }
+
+    updateCamera(dt) {
+      const c = this.cam, fx = this.frontX();
+      this.fx = this.fx == null ? fx : this.fx + (fx - this.fx) * (1 - Math.exp(-dt * 8));
+      c.tx += (fx - c.tx) * (1 - Math.exp(-dt * 1.6));
+      const a = this.w / this.h;
+      const D = (a < 1.05 ? 13 + 3 * (1.05 - a) : 15.5) / c.zoom;
+      if (this.portrait !== a < 1.05) { this.portrait = a < 1.05; c.pitch = this.basePitch(); }
+      const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+      let px = c.tx + D * cp * Math.sin(c.yaw), py = D * sp, pz = D * cp * Math.cos(c.yaw);
+      if (c.shake > 0) { const s = c.shake * 0.22; px += (Math.random() - 0.5) * s; py += (Math.random() - 0.5) * s; c.shake = Math.max(0, c.shake - dt * 3); }
+      this.camera.position.set(px, py, pz);
+      this.camera.lookAt(c.tx, 0.35, -0.4);
+      this.scene.fog.near = D * 0.9;
+      this.scene.fog.far = D * 2.5;
+
+      // Matahari mengikuti jam bursa: rendah pagi dan sore, tinggi di tengah hari.
+      const clock = this.m.clock, f = clamp((clock - P.H(8, 45)) / (P.H(16) - P.H(8, 45)), 0, 1);
+      const elev = 0.38 + 0.72 * Math.sin(Math.PI * f), az = -1.15 + 2.3 * f;
+      this.sun.position.set(c.tx + 22 * Math.cos(elev) * Math.sin(az), 22 * Math.sin(elev), 8 + 10 * Math.cos(elev));
+      this.sun.target.position.set(c.tx, 0, 0);
+      const dim = this.m.phase === 'BREAK' ? 0.72 : this.m.phase === 'CLOSED' ? 0.55 : 1;
+      const warm = 1 - Math.sin(Math.PI * f);
+      this.sun.color.setRGB(1, 1 - 0.12 * warm, 1 - 0.28 * warm);
+      this.sun.intensity = this.sunBase * dim;
+      this.hemi.intensity = this.hemiBase * (0.85 + 0.15 * dim);
+    }
+
+    writeTerrain() {
+      const m = this.m, t = this.t, center = Math.round(this.cam.tx / SP + this.origin);
+      const lines = this.lines, arr = lines.instanceMatrix.array;
+      let n = 0, r = 0;
+      const set = (x, len, zc, thick, color) => {
+        const o = n * 16;
+        arr.fill(0, o, o + 16);
+        arr[o] = thick; arr[o + 5] = 0.006; arr[o + 10] = len; arr[o + 12] = x; arr[o + 13] = 0.008; arr[o + 14] = zc; arr[o + 15] = 1;
+        lines.setColorAt(n, color); n++;
+      };
+      for (let i = center - 30; i <= center + 30 && n < 88; i++) {
+        if (i < 0) continue;
+        const p = P.priceAt(i), x = (i - this.origin) * SP, tick = P.tickSize(p);
+        const majorStep = tick === 25 ? 100 : tick * 5;
+        const major = p % majorStep === 0;
+        const edge = P.BANDS.some((b) => b.lo === p && b.lo > 1);
+        if (edge) set(x - SP / 2, W + 1.6, 0.4, 0.06, this.brassC);
+        set(x - SP / 2, major ? W + 0.9 : W + 0.3, major ? 0.45 : 0.15, major ? 0.035 : 0.018, major ? this.majorC : this.minorC);
+        if (major && r < this.rulers.length) {
+          const e = this.tex('rule|' + p, 256, 64, (g, w, h) => {
+            g.font = '800 46px "Plus Jakarta Sans", system-ui, sans-serif';
+            g.fillStyle = t.ink; g.globalAlpha = 0.78; g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillText(fp(p), w / 2, h / 2 + 2);
+          });
+          const ru = this.rulers[r++];
+          if (ru.material.map !== e.t) { ru.material.map = e.t; ru.material.needsUpdate = true; }
+          ru.scale.set(1.9, 0.475, 1);
+          ru.position.set(x, 0.014, W / 2 + 1.35);
+          ru.visible = true;
+        }
+      }
+      for (; r < this.rulers.length; r++) this.rulers[r].visible = false;
+      lines.count = n;
+      lines.instanceMatrix.needsUpdate = true;
+      lines.instanceColor.needsUpdate = true;
+      this.front.position.x = this.fx;
+      this.curtain.position.x = this.fx;
+      const ph = m.phase;
+      this.front.visible = this.curtain.visible = ph !== 'CLOSED';
+    }
+
+    writeUnits(time) {
+      const ab = this.bulls.instanceMatrix.array, as = this.bears.instanceMatrix.array;
+      let nb = 0, ns = 0;
+      for (const st of this.rows.values()) {
+        const n = Math.ceil(st.shown - 1e-3);
+        if (n <= 0) continue;
+        const full = Math.floor(st.shown + 1e-3), part = st.shown - full, rising = st.target > st.shown;
+        const isB = st.side === 'B';
+        for (let k = 0; k < n; k++) {
+          if (isB ? nb >= CAP : ns >= CAP) break;
+          const rank = (k / FILES) | 0, file = k % FILES;
+          const zi = file & 1 ? -((file + 1) >> 1) : file >> 1;
+          const z = (zi + 0.5) * ZS + (hash(k, st.p) - 0.5) * 0.07;
+          const x = st.x + (rank === 0 ? 0.17 : -0.17) * (isB ? 1 : -1) + (hash(k + 7, st.p) - 0.5) * 0.06;
+          const s = k < full ? 1 : part;
+          let y = k >= full && rising ? (1 - s) * 0.55 : 0;
+          if (!reduceMotion) y += 0.012 * Math.sin(time * 2.2 + k * 1.7 + st.x);
+          const yaw = (hash(k + 3, st.p) - 0.5) * 0.7, cy = Math.cos(yaw) * s, sy = Math.sin(yaw) * s;
+          const a = isB ? ab : as, o = (isB ? nb++ : ns++) * 16;
+          a[o] = cy; a[o + 1] = 0; a[o + 2] = -sy; a[o + 3] = 0;
+          a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0;
+          a[o + 8] = sy; a[o + 9] = 0; a[o + 10] = cy; a[o + 11] = 0;
+          a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1;
+        }
+      }
+      this.bulls.count = nb; this.bears.count = ns;
+      this.bulls.instanceMatrix.needsUpdate = true;
+      this.bears.instanceMatrix.needsUpdate = true;
+    }
+
+    writeWalls() {
+      const arr = this.walls.instanceMatrix.array, T = this.m.wallT;
+      let n = 0;
+      this.wallList = [];
+      for (const st of this.rows.values()) {
+        if (st.wallH < 0.02 || n >= 24) continue;
+        const h = (0.32 + 0.24 * Math.min(3, Math.log2(1 + st.lot / Math.max(1, isFinite(T) ? T : st.lot)))) * st.wallH;
+        const x = st.x + (st.side === 'B' ? 0.43 : -0.43), o = n * 16;
+        arr.fill(0, o, o + 16);
+        arr[o] = 0.16; arr[o + 5] = h; arr[o + 10] = W - 0.5; arr[o + 12] = x; arr[o + 13] = h / 2; arr[o + 15] = 1;
+        this.walls.setColorAt(n, st.side === 'B' ? this.wallB : this.wallS);
+        n++;
+        if (st.wall) this.wallList.push({ st, x, h });
+      }
+      this.walls.count = n;
+      this.walls.instanceMatrix.needsUpdate = true;
+      if (this.walls.instanceColor) this.walls.instanceColor.needsUpdate = true;
+    }
+
+    writeTags() {
+      const m = this.m, t = this.t;
+      let i = 0;
+      const put = (e, hgt, x, y, z) => { if (i < this.tags.length) this.setSprite(this.tags[i++], e, hgt, x, y, z); };
+      if (P.isContinuous(m.phase)) {
+        const bb = m.bids.levels[0], bo = m.offers.levels[0];
+        if (bb) put(this.pill('BID ' + fp(bb.p), fLot(bb.lot) + ' lot', { fg: t.bullInk, bg: t.surface, border: t.bull }), 0.62, this.X(bb.p) - 0.35, 1.05, W / 2 - 0.5);
+        if (bo) put(this.pill('OFFER ' + fp(bo.p), fLot(bo.lot) + ' lot', { fg: t.bearInk, bg: t.surface, border: t.bear }), 0.62, this.X(bo.p) + 0.35, 1.05, W / 2 - 0.5);
+      }
+      const near = (this.wallList || []).sort((a, b) => Math.abs(a.x - this.fx) - Math.abs(b.x - this.fx)).slice(0, 2);
+      near.forEach((w, k) => {
+        put(this.pill('TEMBOK ' + fLot(w.st.lot), fp(w.st.p), { fg: t.ink, bg: t.surface, border: w.st.side === 'B' ? t.bull : t.bear }), 0.5, w.x, w.h + 0.55 + k * 0.45, -W / 2 + 0.9);
+      });
+      for (; i < this.tags.length; i++) this.tags[i].visible = false;
+
+      const last = m.last != null ? m.last : m.prev;
+      const dir = m.last == null ? 'flat' : dirClass(m.last, m.prev);
+      const col = dir === 'up' ? t.bull : dir === 'down' ? t.bear : t.muted;
+      const showFlag = m.phase !== 'CLOSED' || m.close != null;
+      this.pole.visible = showFlag;
+      if (showFlag) {
+        const x = this.X(last);
+        this.pole.position.x = x;
+        const pct = m.last == null ? 'acuan' : sign(m.last - m.prev) + nf2.format((Math.abs(m.last - m.prev) / m.prev) * 100) + '%';
+        this.setSprite(this.flag, this.pill(fp(last), pct, { fg: t.ink, bg: t.surface, border: col, font: 'stencil', big: true }), 0.95, x, 2.45, -(W / 2 + 0.45));
+      } else this.flag.visible = false;
+      this.plaqueA.visible = this.plaqueB.visible = true;
+    }
+
+    updateFx(dt) {
+      // peluru
+      const sa = this.shells.instanceMatrix.array;
+      let ns = 0;
+      for (let i = this.flying.length - 1; i >= 0; i--) {
+        const f = this.flying[i];
+        f.t += dt;
+        if (f.t >= f.dur) { this.impact(f); this.flying.splice(i, 1); continue; }
+        const u = f.t / f.dur, x = f.x0 + (f.x1 - f.x0) * u, z = f.z0 + (f.z1 - f.z0) * u;
+        const y = f.y0 + (f.y1 - f.y0) * u + f.arc * 4 * u * (1 - u);
+        const o = ns * 16, s = f.size;
+        sa.fill(0, o, o + 16);
+        sa[o] = s; sa[o + 5] = s; sa[o + 10] = s; sa[o + 12] = x; sa[o + 13] = y; sa[o + 14] = z; sa[o + 15] = 1;
+        this.shells.setColorAt(ns, f.c);
+        ns++;
+      }
+      this.shells.count = ns;
+      this.shells.instanceMatrix.needsUpdate = true;
+      if (this.shells.instanceColor) this.shells.instanceColor.needsUpdate = true;
+
+      // serpihan
+      const ba = this.bits.instanceMatrix.array;
+      let nb = 0;
+      for (let i = this.parts.length - 1; i >= 0; i--) {
+        const q = this.parts[i];
+        q.life -= dt;
+        if (q.life <= 0) { this.parts[i] = this.parts[this.parts.length - 1]; this.parts.pop(); continue; }
+        q.vy -= 9 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+        if (q.y < 0.02) { q.y = 0.02; q.vy *= -0.3; q.vx *= 0.6; q.vz *= 0.6; }
+        const s = q.s * Math.min(1, (q.life / q.max) * 1.6), o = nb * 16;
+        ba.fill(0, o, o + 16);
+        ba[o] = s; ba[o + 5] = s; ba[o + 10] = s; ba[o + 12] = q.x; ba[o + 13] = q.y; ba[o + 14] = q.z; ba[o + 15] = 1;
+        this.bits.setColorAt(nb, q.c);
+        nb++;
+      }
+      this.bits.count = nb;
+      this.bits.instanceMatrix.needsUpdate = true;
+      if (this.bits.instanceColor) this.bits.instanceColor.needsUpdate = true;
+
+      for (const r of this.rings) {
+        if (!r.on) continue;
+        r.t += dt;
+        const u = r.t / r.dur;
+        if (u >= 1) { r.on = false; r.m.visible = false; continue; }
+        const s = r.max * (1 - Math.pow(1 - u, 3));
+        r.m.scale.set(s, s, s);
+        r.m.material.opacity = 0.65 * (1 - u);
+      }
+    }
+  }
+
+  // ============================================================= ANTARMUKA
+  const els = {
+    last: $('last'), chg: $('chg'), ref: $('ref'), ara: $('ara'), arb: $('arb'), tick: $('tick'),
+    phase: $('phase'), clock: $('clock'), date: $('date'), code: $('code-btn'),
+    auction: $('auction'), toasts: $('toasts'), veil: $('veil'), scale: $('legend-scale'),
+    pbB: $('pb-b'), pbS: $('pb-s'), pkB: $('pk-b'), pkS: $('pk-s'), plB: $('pl-b'), plS: $('pl-s'),
+    nf: $('nf'), nfSub: $('nf-sub'), vol: $('vol'), val: $('val'), range: $('range'), open: $('open'), dayAh: $('day-ah'),
+    obBody: $('ob-body'), obTb: $('ob-tb'), obTo: $('ob-to'), rtBody: $('rt-body'), kronik: $('kronik'),
+    spark: $('spark'), sparkTip: $('spark-tip'),
+  };
+
+  const obRows = [];
+  for (let i = 0; i < 10; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="f"></td><td class="lot bl"><i></i><span></span></td><td class="px bp"></td><td class="px op o"></td><td class="lot ol o"><i></i><span></span></td><td class="f o"></td>';
+    const td = tr.children;
+    obRows.push({ tr, bf: td[0], bl: td[1].lastChild, bbar: td[1].firstChild, bp: td[2], op: td[3], ol: td[4].lastChild, obar: td[4].firstChild, of: td[5] });
+    els.obBody.appendChild(tr);
+  }
+
+  let market = null, sim = null, field = null, mode = 'sim', paused = false, day = tradingDay(wibNow());
+  let rtBuf = [], lastUi = 0, lastSpark = 0, softToastAt = 0, recapShown = false, sparkHover = null;
+
+  function setText(el, s) { if (el.textContent !== s) el.textContent = s; }
+
+  function toast(text, tag, tone) {
+    const d = document.createElement('div');
+    d.className = 'toast';
+    const t = document.createElement('span'); t.className = 'tag ' + tone; t.textContent = tag;
+    const s = document.createElement('span'); s.textContent = text;
+    d.append(t, s);
+    els.toasts.prepend(d);
+    while (els.toasts.children.length > 3) els.toasts.lastChild.remove();
+    setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 420); }, 4200);
+  }
+  function kronik(time, text, tag, tone) {
+    const li = document.createElement('li');
+    const tm = document.createElement('time'); tm.textContent = fClock(time).slice(0, 5);
+    const sp = document.createElement('span');
+    const tg = document.createElement('span'); tg.className = 'tag ' + tone; tg.textContent = tag;
+    sp.append(tg, document.createTextNode(text));
+    li.append(tm, sp);
+    els.kronik.prepend(li);
+    while (els.kronik.children.length > 40) els.kronik.lastChild.remove();
+  }
+
+  const sideName = (s) => (s === 'B' ? 'bid' : 'offer');
+  function describe(e) {
+    switch (e.kind) {
+      case 'big':
+        if (e.side === 'A') return { text: `${fLot(e.lot)} lot cocok di ${fp(e.to)}`, tag: 'Lelang', tone: 'brass', toast: false };
+        return {
+          text: `${e.side === 'B' ? 'HAKA' : 'HAKI'} ${fLot(e.lot)} lot (${fRp(e.value)}) ${e.from !== e.to ? fp(e.from) + '→' + fp(e.to) : 'di ' + fp(e.to)}`,
+          tag: 'Jumbo', tone: e.side === 'B' ? 'bull' : 'bear', toast: true,
+        };
+      case 'wall': return { text: `Tembok ${sideName(e.side)} ${fLot(e.lot)} lot di ${fp(e.p)}`, tag: 'Tembok', tone: e.side === 'B' ? 'bull' : 'bear', toast: 'soft' };
+      case 'wallGone':
+        return { text: `Tembok ${sideName(e.side)} ${fp(e.p)} ${e.how}`, tag: e.how === 'jebol' ? 'Jebol' : 'Ditarik', tone: e.how === 'jebol' ? (e.side === 'B' ? 'bear' : 'bull') : 'neutral', toast: e.how === 'jebol' ? 'soft' : false };
+      case 'ara': return { text: `Mentok ARA ${fp(e.p)}, antre beli ${fLot(e.lot)} lot`, tag: 'ARA', tone: 'bull', toast: true };
+      case 'arb': return { text: `Mentok ARB ${fp(e.p)}, antre jual ${fLot(e.lot)} lot`, tag: 'ARB', tone: 'bear', toast: true };
+      case 'band': return { text: `${e.to > e.from ? 'Naik ke' : 'Turun ke'} rentang fraksi Rp${e.to} di ${fp(e.p)}`, tag: 'Fraksi', tone: 'brass', toast: true };
+      case 'open':
+        return e.p != null
+          ? { text: `Harga pembukaan ${fp(e.p)}, ${fLot(e.v)} lot cocok di pre-opening`, tag: 'Buka', tone: 'brass', toast: true }
+          : { text: 'Pre-opening tanpa kecocokan; harga dibuka oleh transaksi pertama', tag: 'Buka', tone: 'neutral', toast: true };
+      case 'close': return { text: `Harga penutupan ${fp(e.p)}`, tag: 'Tutup', tone: 'brass', toast: true };
+      case 'phase':
+        if (e.to === 'BREAK') return { text: 'Istirahat siang: gencatan senjata', tag: 'Jeda', tone: 'neutral', toast: true };
+        if (e.to === 'S2') return { text: 'Sesi 2 dibuka, pertempuran berlanjut', tag: 'Sesi 2', tone: 'neutral', toast: true };
+        if (e.to === 'PRE_CLOSE') return { text: 'Pre-closing: call auction untuk harga penutupan', tag: 'Lelang', tone: 'brass', toast: true };
+        if (e.to === 'PRE_OPEN') return { text: 'Pre-opening: order dikumpulkan, belum ada transaksi', tag: 'Lelang', tone: 'brass', toast: true };
+        return null;
+      default: return null;
+    }
+  }
+  function handleEvents(events, quiet) {
+    for (const e of events) {
+      const d = describe(e);
+      if (!d) continue;
+      kronik(e.t, d.text, d.tag, d.tone);
+      if (quiet || !d.toast) continue;
+      if (d.toast === 'soft') {
+        const now = performance.now();
+        if (now - softToastAt < 6000) continue;
+        softToastAt = now;
+      }
+      toast(d.text, d.tag, d.tone);
+    }
+  }
+
+  const ISSUERS = { SRSN: 'Indo Acidatama Tbk' };
+  function setStatic() {
+    const m = market;
+    setText(els.code, m.code);
+    $('issuer').hidden = !ISSUERS[m.code];
+    setText($('issuer'), ISSUERS[m.code] || '');
+    setText(els.ref, fp(m.prev));
+    setText(els.ara, fp(m.limits.ara) + (m.limits.araPct ? ` (+${m.limits.araPct}%)` : ''));
+    setText(els.arb, fp(m.limits.arb) + (m.limits.arbPct ? ` (−${m.limits.arbPct}%)` : ''));
+    setText(els.date, mode === 'sim' ? dateLabel(day) : dateLabel(day) + ' · feed');
+  }
+
+  function renderHeader() {
+    const m = market;
+    const has = m.last != null;
+    setText(els.last, fp(has ? m.last : m.prev));
+    const d = has ? m.last - m.prev : 0;
+    els.last.className = 'last ' + (has ? dirClass(m.last, m.prev) : 'flat');
+    setText(els.chg, has ? `${sign(d)}${fp(Math.abs(d))} (${sign(d)}${nf2.format((Math.abs(d) / m.prev) * 100)}%)` : 'belum ada transaksi');
+    els.chg.className = 'chg ' + (has ? dirClass(m.last, m.prev) : 'flat');
+    setText(els.tick, 'Rp' + P.tickSize(has ? m.last : m.prev));
+    setText(els.phase, P.PHASE_LABEL[m.phase] || m.phase);
+    els.phase.dataset.phase = m.phase;
+    setText(els.clock, fClock(m.clock));
+    if (P.isAuction(m.phase)) {
+      const i = m.computeIEP();
+      els.auction.hidden = false;
+      setText(els.auction, i.p != null ? `Call auction · IEP ${fp(i.p)} · IEV ${fLot(i.v)} lot` : 'Call auction · order belum bertemu');
+    } else els.auction.hidden = true;
+  }
+
+  function renderBook() {
+    const m = market, bids = m.top('B', 10), offs = m.top('S', 10);
+    let mx = 1;
+    for (const r of bids) mx = Math.max(mx, r.lot);
+    for (const r of offs) mx = Math.max(mx, r.lot);
+    for (let i = 0; i < 10; i++) {
+      const row = obRows[i], b = bids[i], o = offs[i];
+      setText(row.bf, b ? fp(b.freq) : '');
+      setText(row.bl, b ? fp(b.lot) : '');
+      setText(row.bp, b ? fp(b.p) + (b.p === m.limits.ara ? ' ARA' : '') : '');
+      row.bbar.style.width = b ? ((100 * b.lot) / mx).toFixed(1) + '%' : '0';
+      setText(row.op, o ? (o.p === m.limits.arb ? 'ARB ' : '') + fp(o.p) : '');
+      setText(row.ol, o ? fp(o.lot) : '');
+      setText(row.of, o ? fp(o.freq) : '');
+      row.obar.style.width = o ? ((100 * o.lot) / mx).toFixed(1) + '%' : '0';
+      row.tr.classList.toggle('wb', !!(b && b.wall));
+      row.tr.classList.toggle('wo', !!(o && o.wall));
+    }
+    const tb = bids.reduce((s, r) => s + r.lot, 0), to = offs.reduce((s, r) => s + r.lot, 0);
+    setText(els.obTb, `Total ${fLot(tb)} lot`);
+    setText(els.obTo, `Total ${fLot(to)} lot`);
+  }
+
+  function renderTape() {
+    if (!rtBuf.length) return;
+    const items = rtBuf.slice(-14).reverse();
+    rtBuf = [];
+    const frag = document.createDocumentFragment();
+    for (const tr of items) {
+      const row = document.createElement('tr');
+      if (!reduceMotion) row.className = 'new';
+      const act = tr.side === 'B' ? 'HAKA' : tr.side === 'S' ? 'HAKI' : 'LELANG';
+      const bf = tr.bF * 2 >= tr.lot ? 'F' : 'D', sf = tr.sF * 2 >= tr.lot ? 'F' : 'D';
+      row.innerHTML = `<td>${fClock(tr.t)}</td><td class="p ${dirClass(tr.price, market.prev)}">${fp(tr.price)}</td><td>${fp(tr.lot)}</td>` +
+        `<td><span class="act ${tr.side}">${act}</span></td><td class="bs"><span class="${bf}">${bf}</span>·<span class="${sf}">${sf}</span></td>`;
+      frag.appendChild(row);
+    }
+    els.rtBody.insertBefore(frag, els.rtBody.firstChild);
+    while (els.rtBody.children.length > 60) els.rtBody.lastChild.remove();
+    $('rt-empty').hidden = true;
+  }
+
+  function renderStats() {
+    const m = market, pr = m.pressure(), tot = pr.b + pr.s, share = tot ? pr.b / tot : 0.5;
+    els.pbB.style.width = (share * 100).toFixed(1) + '%';
+    els.pbS.style.width = ((1 - share) * 100).toFixed(1) + '%';
+    setText(els.pkB, tot ? Math.round(share * 100) + '%' : '–');
+    setText(els.pkS, tot ? 100 - Math.round(share * 100) + '%' : '–');
+    setText(els.plB, tot ? fLot(pr.b) : '');
+    setText(els.plS, tot ? fLot(pr.s) : '');
+    const net = m.fbuy - m.fsell;
+    setText(els.nf, (net > 0 ? '+' : '') + fRp(net));
+    els.nf.className = net > 0 ? 'up' : net < 0 ? 'down' : '';
+    setText(els.nfSub, `Beli ${fRp(m.fbuy)} · Jual ${fRp(m.fsell)}`);
+    setText(els.vol, fLot(m.volume) + ' lot');
+    setText(els.val, `${fRp(m.value)} · frek ${fp(m.freq)}`);
+    setText(els.range, m.low == null ? '–' : m.low === m.high ? fp(m.low) : `${fp(m.low)}–${fp(m.high)}`);
+    setText(els.open, m.open == null ? 'Belum dibuka' : `Open ${fp(m.open)} · Acuan ${fp(m.prev)}`);
+    setText(els.dayAh, `Sepanjang hari: HAKA ${fLot(m.haka)} · HAKI ${fLot(m.haki)} lot`);
+    if (field) setText(els.scale, `1 bidak = ${fp(field.unitLots)} lot`);
+  }
+
+  function sparkPoints() {
+    const m = market, pts = m.history.slice();
+    if (m.last != null && (!pts.length || pts[pts.length - 1][0] < m.clock)) pts.push([m.clock, m.last]);
+    return pts;
+  }
+  function drawSpark() {
+    const c = els.spark, g = c.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const m = market, pts = sparkPoints(), t0 = P.H(9), t1 = P.H(16);
+    let lo = m.prev, hi = m.prev;
+    for (const [, p] of pts) { lo = Math.min(lo, p); hi = Math.max(hi, p); }
+    const pad = (hi - lo) * 0.18 || m.prev * 0.006;
+    lo -= pad; hi += pad;
+    const ph = h - 11;
+    const X = (t) => ((t - t0) / (t1 - t0)) * (w - 6) + 3, Y = (p) => ph - 2 - ((p - lo) / (hi - lo)) * (ph - 4);
+    g.strokeStyle = tok.rule; g.lineWidth = 1;
+    g.font = '600 9px "Plus Jakarta Sans", system-ui, sans-serif'; g.fillStyle = tok.muted; g.textBaseline = 'bottom';
+    for (const [tt, lab] of [[P.H(9), '09'], [P.H(10), '10'], [P.H(12), '12'], [P.H(14), '14'], [P.H(16), '16']]) {
+      if (tt > t0 && tt < t1) { g.beginPath(); g.moveTo(X(tt), 0); g.lineTo(X(tt), ph); g.stroke(); }
+      g.textAlign = tt === t0 ? 'left' : tt === t1 ? 'right' : 'center';
+      g.fillText(lab, X(tt), h);
+    }
+    g.setLineDash([3, 3]); g.strokeStyle = tok.muted;
+    g.beginPath(); g.moveTo(0, Y(m.prev)); g.lineTo(w, Y(m.prev)); g.stroke(); g.setLineDash([]);
+    if (pts.length < 2) return;
+    const up = pts[pts.length - 1][1] >= m.prev, col = up ? tok.bull : tok.bear;
+    const segs = [];
+    let cur = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (i && pts[i][0] - pts[i - 1][0] > 240) { segs.push(cur); cur = []; }
+      cur.push(pts[i]);
+    }
+    segs.push(cur);
+    for (const sg of segs) {
+      if (sg.length < 2) continue;
+      g.beginPath();
+      sg.forEach(([t, p], i) => (i ? g.lineTo(X(t), Y(p)) : g.moveTo(X(t), Y(p))));
+      g.lineTo(X(sg[sg.length - 1][0]), Y(m.prev)); g.lineTo(X(sg[0][0]), Y(m.prev)); g.closePath();
+      g.globalAlpha = 0.14; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
+      g.beginPath();
+      sg.forEach(([t, p], i) => (i ? g.lineTo(X(t), Y(p)) : g.moveTo(X(t), Y(p))));
+      g.strokeStyle = col; g.lineWidth = 1.6; g.lineJoin = 'round'; g.stroke();
+    }
+    const [lt, lp] = pts[pts.length - 1];
+    g.beginPath(); g.arc(X(lt), Y(lp), 3, 0, Math.PI * 2); g.fillStyle = col; g.fill();
+    g.lineWidth = 2; g.strokeStyle = tok.surface; g.stroke();
+    if (sparkHover != null) {
+      const tt = t0 + ((sparkHover - 3) / (w - 6)) * (t1 - t0);
+      let best = null;
+      for (const q of pts) if (!best || Math.abs(q[0] - tt) < Math.abs(best[0] - tt)) best = q;
+      if (best) {
+        g.strokeStyle = tok.ink; g.globalAlpha = 0.5; g.beginPath(); g.moveTo(X(best[0]), 0); g.lineTo(X(best[0]), ph); g.stroke(); g.globalAlpha = 1;
+        els.sparkTip.hidden = false;
+        setText(els.sparkTip, `${fClock(best[0]).slice(0, 5)} · ${fp(best[1])}`);
+      }
+    } else els.sparkTip.hidden = true;
+  }
+  els.spark.addEventListener('pointermove', (e) => { sparkHover = e.offsetX; if (market) drawSpark(); });
+  els.spark.addEventListener('pointerleave', () => { sparkHover = null; if (market) drawSpark(); });
+
+  function showVeil(kind) {
+    const v = els.veil, m = market;
+    if (kind === 'break') {
+      const s2 = m.plan.find((s) => s.phase === 'S2');
+      v.innerHTML = `<div class="card"><span class="eyebrow">Istirahat siang</span><h2>Gencatan senjata</h2>` +
+        `<p>Sesi 1 selesai. Antrean tetap di tempat; pertempuran lanjut pukul ${fClock(s2.from).slice(0, 5)} WIB.</p><div class="meter"><span id="break-meter"></span></div></div>`;
+      v.hidden = false;
+    } else if (kind === 'recap') {
+      const close = m.close, d = close - m.prev, pct = (Math.abs(d) / m.prev) * 100;
+      const verdict = close === m.limits.ara ? 'Bulls menang telak: ditutup ARA'
+        : close === m.limits.arb ? 'Bears menang telak: ditutup ARB'
+        : d > 0 ? (pct >= 3 ? 'Bulls menang' : 'Bulls menang tipis') : d < 0 ? (pct >= 3 ? 'Bears menang' : 'Bears menang tipis') : 'Imbang: ditutup sama dengan acuan';
+      const share = m.haka + m.haki ? Math.round((100 * m.haka) / (m.haka + m.haki)) : 50;
+      v.innerHTML = `<div class="card"><span class="eyebrow">Pertempuran selesai · ${dateLabel(day)}</span>` +
+        `<h2></h2><p class="verdict ${dirClass(close, m.prev)}"></p>` +
+        `<dl><div><dt>Open</dt><dd>${fp(m.open)}</dd></div><div><dt>High</dt><dd>${fp(m.high)}</dd></div><div><dt>Low</dt><dd>${fp(m.low)}</dd></div>` +
+        `<div><dt>Volume</dt><dd>${fLot(m.volume)} lot</dd></div><div><dt>Nilai</dt><dd>${fRp(m.value)}</dd></div><div><dt>Frekuensi</dt><dd>${fp(m.freq)}</dd></div>` +
+        `<div><dt>HAKA : HAKI</dt><dd>${share} : ${100 - share}</dd></div><div><dt>Net asing</dt><dd>${(m.fbuy - m.fsell > 0 ? '+' : '') + fRp(m.fbuy - m.fsell)}</dd></div><div><dt>Penutupan</dt><dd>${fp(close)}</dd></div></dl>` +
+        `<div class="row"><button class="btn primary" type="button" id="next-day">Hari berikutnya</button><button class="btn" type="button" id="replay-day">Ulang hari ini</button></div></div>`;
+      v.querySelector('h2').textContent = `${m.code} ditutup ${fp(close)} (${sign(d)}${fp(Math.abs(d))} · ${sign(d)}${nf2.format(pct)}%)`;
+      v.querySelector('.verdict').textContent = verdict;
+      v.hidden = false;
+      $('next-day').addEventListener('click', () => newDay({ prev: close, date: nextTradingDay(day), warm: false }));
+      $('replay-day').addEventListener('click', () => newDay({ prev: m.prev, date: day, warm: false }));
+    } else v.hidden = true;
+  }
+
+  function resetUi() {
+    els.rtBody.textContent = '';
+    $('rt-empty').hidden = false;
+    els.kronik.textContent = '';
+    els.toasts.textContent = '';
+    rtBuf = [];
+    recapShown = false;
+    els.veil.hidden = true;
+  }
+
+  // ================================================================= MODE SIMULASI
+  function newDay({ prev = cfg.prev, date = day, warm = true } = {}) {
+    day = date;
+    market = new P.Market({ code: cfg.code, prev, date: isoOf(day), dow: day.getUTCDay() });
+    sim = new P.Simulator(market, { scenario: cfg.scenario });
+    resetUi();
+    if (warm) {
+      sim.runUntil(P.H(9, 0, 50));
+      const { trades, events } = market.drain();
+      handleEvents(events, true);
+      rtBuf = trades.slice(-14);
+    }
+    setStatic();
+    if (field) field.setMarket(market);
+    renderAll();
+  }
+
+  let breakSpan = 1;
+  function advanceSim(dt) {
+    const m = market, ph = m.phase;
+    if (ph === 'CLOSED') return;
+    let rate = cfg.speed;
+    if (ph === 'PRE_OPEN') rate = Math.max(rate, 60);
+    else if (ph === 'PRE_CLOSE') rate = Math.max(rate, 40);
+    else if (ph === 'BREAK') {
+      const b = m.plan.find((s) => s.phase === 'BREAK');
+      breakSpan = b.to - b.from;
+      rate = breakSpan / (reduceMotion ? 3 : 6);
+    }
+    const simDt = dt * rate, n = Math.min(240, Math.ceil(simDt / 0.5)), h = simDt / n;
+    for (let i = 0; i < n; i++) { sim.step(h); if (m.phase !== ph) break; }
+  }
+
+  // ================================================================= MODE FEED
+  // index.html?feed=ws://localhost:8787  → lihat README untuk format pesan.
+  function startLive(url) {
+    mode = 'live';
+    $('sim-controls').hidden = true;
+    $('live-controls').hidden = false;
+    $('stamp').textContent = 'FEED';
+    els.code.disabled = true;
+    const status = $('feed-status');
+    let retry = 0;
+    const connect = () => {
+      let ws;
+      try { ws = new WebSocket(url); } catch (e) { status.textContent = 'Alamat feed tidak valid'; return; }
+      status.textContent = 'Menyambung ke ' + url + '…';
+      ws.onopen = () => { retry = 0; status.textContent = 'Tersambung: ' + url; };
+      ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch (e) { return; }
+        for (const x of Array.isArray(msg) ? msg : [msg]) handleFeed(x);
+      };
+      ws.onclose = () => {
+        status.textContent = 'Feed terputus, mencoba lagi…';
+        setTimeout(connect, Math.min(15000, 1000 * 2 ** retry++));
+      };
+    };
+    connect();
+  }
+  let feedClock = false;
+  function handleFeed(x) {
+    if (!x || typeof x !== 'object') return;
+    if (x.t != null || x.clock != null || (Array.isArray(x.items) && x.items.length && x.items[0].t != null)) feedClock = true;
+    if (x.type === 'hello') {
+      const d = new Date(Date.parse((x.date || isoOf(wibNow())) + 'T00:00:00Z'));
+      day = isNaN(d) ? wibNow() : d;
+      market = new P.Market({ code: cleanCode(x.code) || 'FEED', prev: Math.round(+x.prev) || 1, date: isoOf(day), dow: day.getUTCDay(), clock: P.parseClock(x.clock) ?? undefined });
+      if (x.phase) market.phase = x.phase;
+      resetUi(); setStatic();
+      if (field) field.setMarket(market);
+      return;
+    }
+    if (!market) return;
+    if (x.type === 'book') market.applyBook(x.bids, x.offers);
+    else if (x.type === 'trade') market.applyTrade(x);
+    else if (x.type === 'trades' && Array.isArray(x.items)) for (const t of x.items) market.applyTrade(t);
+    else if (x.type === 'phase') market.applyPhase(x.phase, x.clock);
+    else if (x.type === 'stats') market.applyStats(x);
+  }
+
+  // ================================================================= KONTROL
+  const scenarioSel = $('scenario');
+  for (const [k, s] of Object.entries(P.SCENARIOS)) {
+    const o = document.createElement('option'); o.value = k; o.textContent = s.label; o.title = s.note;
+    scenarioSel.appendChild(o);
+  }
+  scenarioSel.value = cfg.scenario;
+  scenarioSel.addEventListener('change', () => {
+    cfg.scenario = scenarioSel.value; store.set('scenario', cfg.scenario);
+    if (sim) sim.setScenario(cfg.scenario);
+    const s = P.SCENARIOS[cfg.scenario];
+    toast(s.note, s.label, 'neutral');
+  });
+  const speedBtns = [...document.querySelectorAll('#speed button')];
+  const syncSpeed = () => speedBtns.forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.speed === cfg.speed)));
+  speedBtns.forEach((b) => b.addEventListener('click', () => { cfg.speed = +b.dataset.speed; store.set('speed', cfg.speed); syncSpeed(); }));
+  syncSpeed();
+  const playBtn = $('play');
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.2v11.6c0 .6.7 1 1.2.6l8.4-5.8c.4-.3.4-.9 0-1.2L5.2 1.6C4.7 1.2 4 1.6 4 2.2z"/></svg>';
+  const syncPlay = () => { playBtn.innerHTML = paused ? ICON_PLAY : ICON_PAUSE; playBtn.setAttribute('aria-label', paused ? 'Lanjutkan simulasi' : 'Jeda simulasi'); };
+  playBtn.addEventListener('click', () => { paused = !paused; syncPlay(); });
+  syncPlay();
+  $('restart').addEventListener('click', () => newDay({ prev: market ? market.prev : cfg.prev, date: day, warm: false }));
+
+  const openSheet = (id) => { const s = $(id); s.hidden = false; const f = s.querySelector('input, button'); if (f) f.focus(); };
+  const closeSheets = () => { $('help').hidden = true; $('setup').hidden = true; };
+  $('help-btn').addEventListener('click', () => openSheet('help'));
+  $('help-btn-live').addEventListener('click', () => openSheet('help'));
+  for (const s of document.querySelectorAll('.sheet')) {
+    s.addEventListener('click', (e) => { if (e.target === s || e.target.hasAttribute('data-close')) closeSheets(); });
+  }
+  els.code.addEventListener('click', () => {
+    $('f-code').value = market ? market.code : cfg.code;
+    $('f-prev').value = market ? market.prev : cfg.prev;
+    $('setup-msg').textContent = 'Kode hanya label. Harga berjalan dibangkitkan simulator dari harga acuan ini, bukan diambil dari pasar. Bawaan: SRSN, acuan Rp132 (penutupan 2 Okt 2026).';
+    openSheet('setup');
+  });
+  $('setup-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const code = cleanCode($('f-code').value), raw = Math.round(+$('f-prev').value);
+    if (code.length !== 4) { $('setup-msg').textContent = 'Kode saham BEI terdiri dari 4 huruf, misalnya BBCA.'; $('f-code').focus(); return; }
+    if (!(raw >= 1 && raw <= 1e6)) { $('setup-msg').textContent = 'Isi harga acuan antara Rp1 dan Rp1.000.000.'; $('f-prev').focus(); return; }
+    const prev = P.floorTick(raw);
+    cfg.code = code; cfg.prev = prev;
+    store.set('code', code); store.set('prev', prev);
+    closeSheets();
+    newDay({ prev, date: tradingDay(wibNow()), warm: true });
+    if (prev !== raw) toast(`Harga acuan dibulatkan ke fraksi terdekat: ${fp(prev)}`, 'Fraksi', 'brass');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeSheets(); return; }
+    if (e.target.closest('input, select, textarea, button, [contenteditable]')) return;
+    if (e.key === ' ' && mode === 'sim' && $('help').hidden && $('setup').hidden) { e.preventDefault(); paused = !paused; syncPlay(); }
+  });
+
+  // ================================================================= TEMA, UKURAN, FONT
+  function applyTheme() { tok = readTokens(); if (field) field.setTheme(tok); if (market) drawSpark(); }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+
+  try {
+    if (window.THREE) field = new Field($('field'));
+  } catch (err) { field = null; }
+  if (!field) $('glerr').hidden = false;
+  else {
+    field.setTheme(tok);
+    field.onInteract = () => { $('hint').hidden = true; };
+    const oneScreen = matchMedia('(min-width: 1120px) and (min-height: 660px)');
+    const syncWheel = () => { field.wheelZoom = oneScreen.matches; $('hint').textContent = oneScreen.matches ? 'Seret untuk memutar · gulir untuk zoom' : 'Seret untuk memutar · cubit atau Ctrl+gulir untuk zoom'; };
+    oneScreen.addEventListener('change', syncWheel);
+    syncWheel();
+    const stage = $('stage');
+    new ResizeObserver(() => field.resize(stage.clientWidth, stage.clientHeight)).observe(stage);
+    field.resize(stage.clientWidth, stage.clientHeight);
+    $('field').addEventListener('webglcontextlost', (e) => { e.preventDefault(); $('glerr').hidden = false; });
+  }
+  if (document.fonts && document.fonts.load) {
+    Promise.all([
+      document.fonts.load('800 40px "Plus Jakarta Sans"'),
+      document.fonts.load('400 40px "Saira Stencil One"'),
+    ]).then(() => { if (field) field.flushText(); }).catch(() => {});
+  }
+
+  // ================================================================= LOOP
+  function renderAll() {
+    if (!market) return;
+    renderHeader(); renderBook(); renderTape(); renderStats(); drawSpark();
+  }
+
+  let prevT = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, (now - prevT) / 1000);
+    prevT = now;
+    if (market) {
+      if (mode === 'sim' && !paused && $('setup').hidden) advanceSim(dt);
+      if (mode === 'live' && !feedClock && market.phase !== 'CLOSED') {
+        const w = wibNow(), c = w.getUTCHours() * 3600 + w.getUTCMinutes() * 60 + w.getUTCSeconds();
+        if (c > market.clock) market.clock = c;
+      }
+      const { trades, events } = market.drain();
+      if (trades.length) { rtBuf.push(...trades); if (rtBuf.length > 200) rtBuf = rtBuf.slice(-200); }
+      if (field) { field.onTrades(trades); field.onEvents(events); }
+      handleEvents(events, false);
+      if (market.phase === 'BREAK' && mode === 'sim') {
+        if (els.veil.hidden) showVeil('break');
+        const b = market.plan.find((s) => s.phase === 'BREAK'), mtr = $('break-meter');
+        if (mtr) mtr.style.width = (100 * clamp((market.clock - b.from) / (b.to - b.from), 0, 1)).toFixed(1) + '%';
+      } else if (market.phase === 'CLOSED' && market.close != null && mode === 'sim') {
+        if (!recapShown) { recapShown = true; showVeil('recap'); }
+      } else if (!els.veil.hidden && !recapShown) showVeil(null);
+      if (now - lastUi > 120) { lastUi = now; renderHeader(); renderBook(); renderTape(); renderStats(); }
+      if (now - lastSpark > 700) { lastSpark = now; drawSpark(); }
+    }
+    if (field) field.frame(dt, now / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  // Pegangan untuk konsol pengembang: palagan.market, palagan.sim.
+  window.palagan = { get market() { return market; }, get sim() { return sim; }, get field() { return field; } };
+
+  const feedUrl = new URLSearchParams(location.search).get('feed');
+  if (feedUrl) startLive(feedUrl);
+  else newDay({ prev: cfg.prev, date: day, warm: true });
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
