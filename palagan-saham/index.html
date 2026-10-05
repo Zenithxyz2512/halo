@@ -133,6 +133,7 @@ select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); b
 .stage {
   grid-area: stage; display: flex; flex-direction: column; height: min(62vh, 560px); min-height: 330px;
   border-radius: 10px; overflow: hidden; background: var(--bg); border: 1px solid var(--rule);
+  container: stage / inline-size;
 }
 .view { position: relative; flex: 1 1 auto; min-height: 0; }
 #field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab; }
@@ -150,7 +151,7 @@ select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); b
 .datainfo { border-color: var(--rule); line-height: 1.35; }
 .datainfo b { font-variant-numeric: tabular-nums; }
 .datainfo small { display: block; color: var(--muted); font-size: 11px; }
-.app[data-mode="sheet"] .sim-only { display: none !important; }
+.app[data-mode="sheet"] .sim-only, .app[data-mode="hist"] .sim-only { display: none !important; }
 @media (max-width: 639px) { .badges { max-width: calc(100% - 110px); } .datainfo small { display: none; } }
 .auction b { font-variant-numeric: tabular-nums; }
 .toasts {
@@ -176,9 +177,12 @@ select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); b
 }
 .legend .hint { margin-left: auto; }
 .timebar {
-  flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 10px;
+  flex: none; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 10px;
   padding: 6px 12px; border-top: 1px solid var(--rule); background: var(--surface);
 }
+.tb-picks { display: inline-flex; gap: 4px; min-width: 0; }
+.tb-picks select { height: 28px; padding: 0 4px 0 6px; font-size: 12px; min-width: 0; max-width: 150px; }
+.tb-picks select[hidden] { display: none; }
 .tb-buttons { display: inline-flex; gap: 4px; }
 .tb-btn {
   width: 30px; height: 28px; display: inline-grid; place-items: center; color: var(--ink);
@@ -197,10 +201,11 @@ select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); b
 .tb-time { font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 62px; text-align: center; }
 .tb-now { height: 28px; padding: 0 10px; border-radius: var(--r); border: 1px solid var(--rule); background: var(--surface); color: var(--ink); font-weight: 700; font-size: 12px; cursor: pointer; }
 .tb-now[aria-pressed="false"] { background: var(--brass); border-color: var(--brass); color: var(--surface); }
-@media (max-width: 639px) {
+/* Medan sempit (ponsel, atau kolom tengah desktop yang kecil): pilihan tanggal/sesi di baris atas, pita di bawahnya. */
+@container stage (max-width: 899px) {
   .timebar { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .tb-buttons { grid-column: 1; grid-row: 1; } .tb-time { grid-column: 2; grid-row: 1; } .tb-now { grid-column: 3; grid-row: 1; }
-  .tb-track { grid-column: 1 / -1; grid-row: 2; }
+  .tb-picks { grid-column: 1 / 3; grid-row: 1; } .tb-now { grid-column: 3; grid-row: 1; justify-self: end; }
+  .tb-buttons { grid-column: 1; grid-row: 2; } .tb-track { grid-column: 2; grid-row: 2; } .tb-time { grid-column: 3; grid-row: 2; }
 }
 .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
@@ -221,6 +226,7 @@ select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); b
 .card dt { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .card dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
 .card .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.veil .fine { font-size: 12px; color: var(--muted); }
 .meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
 .meter span { display: block; height: 100%; width: 0; background: var(--brass); }
 .glerr { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
@@ -381,7 +387,7 @@ tr.new { animation: flash 1.1s ease-out; }
       <label class="select sim-only" for="scenario"><span class="sr">Skenario</span>
         <select id="scenario" title="Skenario simulasi"></select>
       </label>
-      <div class="seg sim-only" role="group" aria-label="Kecepatan simulasi" id="speed">
+      <div class="seg" role="group" aria-label="Kecepatan simulasi dan putar ulang" id="speed" title="Kecepatan simulasi dan putar ulang">
         <button type="button" data-speed="1">1×</button>
         <button type="button" data-speed="10">10×</button>
         <button type="button" data-speed="30">30×</button>
@@ -412,6 +418,19 @@ tr.new { animation: flash 1.1s ease-out; }
       </div>
     </div>
     <div class="timebar" id="timebar">
+      <div class="tb-picks">
+        <label class="sr" for="tb-date">Tanggal</label>
+        <select id="tb-date" title="Hari ini, atau rekaman harga asli hari bursa sebelumnya" hidden><option value="">Hari ini</option></select>
+        <label class="sr" for="tb-sesi">Sesi</label>
+        <select id="tb-sesi" title="Lompat ke awal sesi dan putar sampai sesi itu selesai">
+          <option value="PRE_OPEN">Pre-open 08:45</option>
+          <option value="S1">Sesi 1 09:00</option>
+          <option value="BREAK" disabled>Istirahat</option>
+          <option value="S2">Sesi 2 13:30</option>
+          <option value="PRE_CLOSE">Pre-close 15:50</option>
+          <option value="CLOSED" disabled>Tutup</option>
+        </select>
+      </div>
       <div class="tb-buttons">
         <button type="button" class="tb-btn" id="tb-back" title="Mundur 1 menit" aria-label="Mundur 1 menit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.2v9.6L1.6 8 8 3.2zm6.4 0v9.6L8 8l6.4-4.8z"/></svg></button>
         <button type="button" class="tb-btn" id="tb-play" title="Putar ulang" aria-label="Putar ulang dari titik ini"></button>
@@ -499,27 +518,12 @@ tr.new { animation: flash 1.1s ease-out; }
       <li><b>Benteng ARA dan ARB</b> = batas auto rejection dari harga acuan. Order di luar batas ini ditolak bursa.</li>
       <li><b>Pre-opening dan pre-closing</b> = call auction. Kedua pasukan berbaur, lalu semua yang cocok dieksekusi di satu harga (IEP). Istirahat siang = gencatan senjata.</li>
       <li><b>Pita waktu</b> di bawah medan: geser untuk melihat keadaan di jam sebelumnya, tombol kiri dan kanan mundur atau maju 1 menit, tombol tengah memutar ulang dari titik itu, dan <b>Sekarang</b> kembali ke waktu terkini. Bisa juga gulir di atas pita atau klik grafik harga. Selama melihat masa lalu, simulasi menunggu; data live tetap berjalan.</li>
-      <li><b>Live</b> memakai harga asli dari Google Finance lewat Google Sheets, tertunda sekitar 10 menit dan dicek ulang tiap 2 menit. Harga, open, high, low, dan volume asli; antrean, tembakan, running trade, dan tekanan HAKA/HAKI tetap simulasi di sekitar harga itu.</li>
+      <li><b>Tanggal</b> di pita waktu: pilih hari bursa sebelumnya untuk memutar ulang rekamannya. <b>Sesi</b>: lompat ke pre-opening, sesi 1, sesi 2, atau pre-closing; pemutaran berhenti saat sesi itu selesai. Kecepatan putar mengikuti tombol 1×–60×.</li>
+      <li><b>Live</b> dan <b>rekaman</b> memakai candle harga asli dari Yahoo Finance yang direkam tiap 10 menit (candle 1 menit untuk 7 hari terakhir, 5 menit untuk yang lebih lama), jadi tertunda sekitar 10–25 menit. Harga, open, high, low, dan volume asli; jalur di antara candle, antrean, tembakan, running trade, dan tekanan HAKA/HAKI tetap simulasi.</li>
     </ul>
-    <p class="fine">Mode <b>Simulasi</b>: kode saham cuma label, harganya dibangkitkan dari harga acuan yang kamu isi. Mode <b>Live</b> hanya jalan di versi web (GitHub Pages), bukan di pratinjau claude.ai. Yang asli adalah aturannya: lot 100 lembar, fraksi harga, ARA/ARB periode 28 Sep–31 Des 2026 (ARB 15%; mulai 2027 ARB sama dengan ARA), dan jadwal sesi BEI. Untuk data live perlu feed order book berlisensi; caranya ada di README proyek. Bukan rekomendasi jual-beli.</p>
+    <p class="fine">Mode <b>Simulasi</b>: kode saham cuma label, harganya dibangkitkan dari harga acuan yang kamu isi. Mode <b>Live</b> dan rekaman hanya jalan di versi web (GitHub Pages), bukan di pratinjau claude.ai. Yang asli adalah aturannya: lot 100 lembar, fraksi harga, ARA/ARB periode 28 Sep–31 Des 2026 (ARB 15%; mulai 2027 ARB sama dengan ARA), dan jadwal sesi BEI. Untuk data live perlu feed order book berlisensi; caranya ada di README proyek. Bukan rekomendasi jual-beli.</p>
     <p class="fine">Terinspirasi <a href="https://newhedge.io/bitcoin/battlefield" target="_blank" rel="noopener">Bitcoin Battlefield</a> dari Newhedge. Pintasan: <span class="kbd">Spasi</span> jeda, <span class="kbd">←</span><span class="kbd">→</span> putar, <span class="kbd">+</span><span class="kbd">−</span> zoom.</p>
     <div class="row"><button class="btn primary" type="button" data-close>Mengerti</button></div>
-  </div>
-</div>
-
-<div class="sheet" id="live-help" hidden role="dialog" aria-modal="true" aria-labelledby="live-help-h">
-  <div class="card">
-    <span class="eyebrow">Mode Live</span>
-    <h2 id="live-help-h">Nyalakan harga asli</h2>
-    <p id="live-help-why"></p>
-    <ol id="live-help-steps">
-      <li>Buka sheet <a id="live-help-sheet" target="_blank" rel="noopener">Harga SRSN untuk Palagan Saham</a> di Google Sheets.</li>
-      <li>Klik <b>Bagikan</b> di kanan atas.</li>
-      <li>Di bagian <b>Akses umum</b>, ubah <b>Dibatasi</b> menjadi <b>Siapa saja yang memiliki link</b>, peran <b>Pelihat</b>, lalu <b>Selesai</b>.</li>
-      <li>Kembali ke halaman ini dan tekan <b>Live</b>.</li>
-    </ol>
-    <p class="fine">Sheet itu hanya berisi rumus GOOGLEFINANCE untuk harga saham. Membagikannya sebagai Pelihat tidak membuka file lain di Drive.</p>
-    <div class="row"><button class="btn primary" type="button" id="live-help-retry">Coba lagi</button><button class="btn" type="button" data-close>Tutup</button></div>
   </div>
 </div>
 
@@ -583,6 +587,7 @@ tr.new { animation: flash 1.1s ease-out; }
   const nextTradingDay = (d) => tradingDay(new Date(d.getTime() + DAY));
   const isoOf = (d) => d.toISOString().slice(0, 10);
   const dateLabel = (d) => d.toLocaleDateString('id-ID', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const shortDate = (iso) => new Date(Date.parse(iso + 'T00:00:00Z')).toLocaleDateString('id-ID', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
 
   // --------------------------------------------- preferensi per penonton
   const store = {
@@ -1317,6 +1322,9 @@ tr.new { animation: flash 1.1s ease-out; }
 
   let market = null, sim = null, field = null, mode = 'sim', paused = false, day = tradingDay(wibNow());
   let rtBuf = [], lastUi = 0, lastSpark = 0, softToastAt = 0, sparkHover = null, veilKind = null, veilDismissed = false;
+  // realSrc(t): harga asli pada jam t (mode Live dan rekaman), atau null di mode simulasi.
+  // hist: rekaman yang sedang diputar ({ D }); building: penanda selama satu hari sedang disusun ulang.
+  let realSrc = null, hist = null, building = null;
 
   function setText(el, s) { if (el.textContent !== s) el.textContent = s; }
 
@@ -1361,6 +1369,7 @@ tr.new { animation: flash 1.1s ease-out; }
           ? { text: `Harga pembukaan ${fp(e.p)}, ${fLot(e.v)} lot cocok di pre-opening`, tag: 'Buka', tone: 'brass', toast: true }
           : { text: 'Pre-opening tanpa kecocokan; harga dibuka oleh transaksi pertama', tag: 'Buka', tone: 'neutral', toast: true };
       case 'close': return { text: `Harga penutupan ${fp(e.p)}`, tag: 'Tutup', tone: 'brass', toast: true };
+      case 'real': return { text: e.text, tag: e.tag, tone: e.tone, toast: e.toast };
       case 'phase':
         if (e.to === 'BREAK') return { text: 'Istirahat siang: gencatan senjata', tag: 'Jeda', tone: 'neutral', toast: true };
         if (e.to === 'S2') return { text: 'Sesi 2 dibuka, pertempuran berlanjut', tag: 'Sesi 2', tone: 'neutral', toast: true };
@@ -1370,13 +1379,15 @@ tr.new { animation: flash 1.1s ease-out; }
       default: return null;
     }
   }
+  // Di mode Live dan rekaman, peristiwa simulasi (tembok, jumbo) tidak dicatat; yang tampil hanya sesi dan data asli.
+  const shownEvent = (e) => (mode !== 'sheet' && mode !== 'hist') || e.kind === 'phase' || e.kind === 'real';
   function handleEvents(events, quiet) {
     for (const e of events) {
-      if (mode === 'sheet' && e.kind !== 'phase') continue;
+      if (!shownEvent(e)) continue;
       const d = describe(e);
       if (!d) continue;
       kronik(e.t, d.text, d.tag, d.tone);
-      if (quiet || !d.toast || view.fm) continue;
+      if (quiet || !d.toast) continue;
       if (d.toast === 'soft') {
         const now = performance.now();
         if (now - softToastAt < 6000) continue;
@@ -1395,17 +1406,22 @@ tr.new { animation: flash 1.1s ease-out; }
     setText(els.ref, fp(m.prev));
     setText(els.ara, fp(m.limits.ara) + (m.limits.araPct ? ` (+${m.limits.araPct}%)` : ''));
     setText(els.arb, fp(m.limits.arb) + (m.limits.arbPct ? ` (−${m.limits.arbPct}%)` : ''));
-    setText(els.date, mode === 'live' ? dateLabel(day) + ' · feed' : dateLabel(day));
+    setText(els.date, dateLabel(day) + (mode === 'live' ? ' · feed' : mode === 'hist' ? ' · rekaman' : ''));
+    for (const o of sesiSel.options) {
+      const seg = SESI_SHORT[o.value] && m.plan.find((s) => s.phase === o.value);
+      if (seg) o.textContent = `${SESI_SHORT[o.value]} ${fClock(seg.from).slice(0, 5)}`;
+    }
   }
 
   function renderHeader() {
-    const m = cur(), q = mode === 'sheet' ? realQ() : null, real = !!q;
-    const lastP = real ? q.price : m.last, prevP = real ? q.prev : m.prev;
+    const m = cur(), q = realQ(), real = !!q, waiting = !real && realSrc != null;
+    // Selama data asli hari ini belum masuk, jangan pamerkan harga simulasi sebagai harga pasar.
+    const lastP = real ? q.price : waiting ? null : m.last, prevP = real ? q.prev : m.prev;
     const has = lastP != null;
     setText(els.last, fp(has ? lastP : prevP));
     const d = has ? lastP - prevP : 0;
     els.last.className = 'last ' + (has ? dirClass(lastP, prevP) : 'flat');
-    setText(els.chg, has ? `${sign(d)}${fp(Math.abs(d))} (${sign(d)}${nf2.format((Math.abs(d) / prevP) * 100)}%)` : 'belum ada transaksi');
+    setText(els.chg, has ? `${sign(d)}${fp(Math.abs(d))} (${sign(d)}${nf2.format((Math.abs(d) / prevP) * 100)}%)` : waiting && m.phase !== 'PRE_OPEN' ? 'menunggu data asli' : 'belum ada transaksi');
     els.chg.className = 'chg ' + (has ? dirClass(lastP, prevP) : 'flat');
     setText(els.tick, 'Rp' + P.tickSize(has ? lastP : prevP));
     setText(els.phase, P.PHASE_LABEL[m.phase] || m.phase);
@@ -1413,10 +1429,21 @@ tr.new { animation: flash 1.1s ease-out; }
     setText(els.clock, fClock(mode === 'sheet' && !view.fm ? wibClock() : m.clock));
     if (real) {
       els.datainfo.hidden = false;
-      els.datainfo.innerHTML = `Harga asli Google Finance · per <b>${q.clock != null ? fClock(q.clock) : '–'}</b> WIB` +
-        `<small>Tertunda sekitar ${q.delay || 10} menit. Antrean dan transaksi di medan: simulasi.</small>`;
+      if (mode === 'hist') {
+        els.datainfo.innerHTML = `Rekaman ${q.src} · per <b>${fClock(q.clock).slice(0, 5)}</b> WIB` +
+          `<small>Candle ${q.step / 60} menit asli. Jalur di antaranya, antrean, dan transaksi: simulasi.</small>`;
+      } else {
+        const late = q.date === isoOf(wibNow()) ? Math.max(0, Math.round((wibClock() - q.clock) / 60)) : null;
+        els.datainfo.innerHTML = `Harga asli ${q.src} · per <b>${fClock(q.clock)}</b> WIB` +
+          `<small>${late != null && !view.fm ? `Tertunda ${late} menit. ` : ''}Antrean dan transaksi di medan: simulasi.</small>`;
+      }
+    } else if (waiting) {
+      els.datainfo.hidden = false;
+      els.datainfo.innerHTML = m.phase === 'PRE_OPEN'
+        ? 'Pre-opening<small>Belum ada transaksi asli. Antrean lelang di medan: simulasi.</small>'
+        : 'Menunggu data asli hari ini<small>Candle masuk tertunda sekitar 10–25 menit. Sementara itu medan: simulasi di sekitar harga acuan.</small>';
     } else els.datainfo.hidden = true;
-    if (P.isAuction(m.phase) && mode !== 'sheet') {
+    if (P.isAuction(m.phase) && !realSrc) {
       const i = m.computeIEP();
       els.auction.hidden = false;
       setText(els.auction, i.p != null ? `Call auction · IEP ${fp(i.p)} · IEV ${fLot(i.v)} lot` : 'Call auction · order belum bertemu');
@@ -1479,7 +1506,7 @@ tr.new { animation: flash 1.1s ease-out; }
 
   function renderStats() {
     const m = cur(), pr = m.pressure(), tot = pr.b + pr.s, share = tot ? pr.b / tot : 0.5;
-    setText($('pressure-h'), mode === 'sheet' ? 'Tekanan 5 menit (simulasi)' : 'Tekanan 5 menit (lot)');
+    setText($('pressure-h'), realSrc ? 'Tekanan 5 menit (simulasi)' : 'Tekanan 5 menit (lot)');
     els.pbB.style.width = (share * 100).toFixed(1) + '%';
     els.pbS.style.width = ((1 - share) * 100).toFixed(1) + '%';
     setText(els.pkB, tot ? Math.round(share * 100) + '%' : '–');
@@ -1495,24 +1522,28 @@ tr.new { animation: flash 1.1s ease-out; }
     setText(els.range, m.low == null ? '–' : m.low === m.high ? fp(m.low) : `${fp(m.low)}–${fp(m.high)}`);
     setText(els.open, m.open == null ? 'Belum dibuka' : `Open ${fp(m.open)} · Acuan ${fp(m.prev)}`);
     setText(els.dayAh, `Sepanjang hari: HAKA ${fLot(m.haka)} · HAKI ${fLot(m.haki)} lot`);
-    const q = mode === 'sheet' ? realQ() : null;
-    if (q) {
+    const q = realQ();
+    if (realSrc) {
+      // Live dan rekaman: angka harian dari data asli; selama belum ada, jangan tampilkan angka simulasi.
       setText(els.nf, 'Tidak tersedia');
       els.nf.className = '';
-      setText(els.nfSub, 'Google Finance tidak memuat data asing');
-      setText(els.vol, fLot(q.vol / 100) + ' lot');
-      setText(els.val, 'Data asli · nilai & frekuensi tidak tersedia');
-      setText(els.range, q.low == null ? '–' : q.low === q.high ? fp(q.low) : `${fp(q.low)}–${fp(q.high)}`);
-      setText(els.open, `Open ${fp(q.open)} · Acuan ${fp(q.prev)}`);
-      setText(els.dayAh, 'Dihitung dari simulasi sejak halaman dibuka');
+      setText(els.nfSub, `${q ? q.src : 'Sumber data'} tidak memuat data asing`);
+      setText(els.vol, q ? fLot(q.vol / 100) + ' lot' : '–');
+      setText(els.val, q ? 'Data asli · nilai & frekuensi tidak tersedia' : 'Belum ada transaksi asli');
+      setText(els.range, !q || q.low == null ? '–' : q.low === q.high ? fp(q.low) : `${fp(q.low)}–${fp(q.high)}`);
+      setText(els.open, q ? `Open ${fp(q.open)} · Acuan ${fp(q.prev)}` : `Acuan ${fp(m.prev)}`);
+      setText(els.dayAh, `HAKA ${fLot(m.haka)} · HAKI ${fLot(m.haki)} lot, dari simulasi`);
     }
     if (field) setText(els.scale, `1 bidak = ${fp(field.unitLots)} lot`);
   }
 
+  // Titik grafik: candle asli di mode Live dan rekaman, riwayat harga simulasi di mode simulasi.
   function sparkPoints() {
+    if (mode === 'hist' && hist) return hist.D.points;
     if (mode === 'sheet' && live) {
-      const pts = snaps.slice();
+      const pts = liveDay && liveDay.date === isoOf(day) ? liveDay.points.slice() : snaps.slice();
       if (live.open && (!pts.length || pts[0][0] > P.H(9))) pts.unshift([P.H(9), live.open]);
+      if (live.date === isoOf(day) && live.clock != null && (!pts.length || pts[pts.length - 1][0] < live.clock)) pts.push([live.clock, live.price]);
       return pts;
     }
     const m = market, pts = m.history.slice();
@@ -1527,7 +1558,7 @@ tr.new { animation: flash 1.1s ease-out; }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
     const m = market, pts = sparkPoints(), t0 = P.H(9), t1 = P.H(16);
-    const refP = mode === 'sheet' && live ? live.prev : m.prev;
+    const refP = m.prev;
     let lo = refP, hi = refP;
     for (const [, p] of pts) { lo = Math.min(lo, p); hi = Math.max(hi, p); }
     const pad = (hi - lo) * 0.18 || m.prev * 0.006;
@@ -1544,31 +1575,43 @@ tr.new { animation: flash 1.1s ease-out; }
     g.setLineDash([3, 3]); g.strokeStyle = tok.muted;
     g.beginPath(); g.moveTo(0, Y(refP)); g.lineTo(w, Y(refP)); g.stroke(); g.setLineDash([]);
     if (pts.length < 2) return;
-    const up = pts[pts.length - 1][1] >= refP, col = up ? tok.bull : tok.bear;
+    // Rekaman: seluruh hari tampil samar, bagian sampai titik yang sedang diputar berwarna.
+    const upto = mode === 'hist' ? (view.at != null ? view.at : market.clock) : Infinity;
+    let k = pts.length - 1;
+    while (k > 0 && pts[k][0] > upto) k--;
+    const up = pts[k][1] >= refP, col = up ? tok.bull : tok.bear;
     const segs = [];
     let cur = [];
     for (let i = 0; i < pts.length; i++) {
-      // Simulasi mencatat tiap 30 detik; data asli datang per ~10 menit, jadi hanya jeda panjang yang memutus garis.
-      if (i && pts[i][0] - pts[i - 1][0] > (mode === 'sheet' ? 6000 : 240)) { segs.push(cur); cur = []; }
+      // Simulasi mencatat tiap 30 detik; candle asli bolong saat istirahat, jadi jeda panjang memutus garis.
+      if (i && pts[i][0] - pts[i - 1][0] > (realSrc ? 1800 : 240)) { segs.push(cur); cur = []; }
       cur.push(pts[i]);
     }
     segs.push(cur);
-    for (const sg of segs) {
-      if (sg.length < 2) continue;
-      g.beginPath();
-      sg.forEach(([t, p], i) => (i ? g.lineTo(X(t), Y(p)) : g.moveTo(X(t), Y(p))));
-      g.lineTo(X(sg[sg.length - 1][0]), Y(refP)); g.lineTo(X(sg[0][0]), Y(refP)); g.closePath();
-      g.globalAlpha = 0.14; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
-      g.beginPath();
-      sg.forEach(([t, p], i) => (i ? g.lineTo(X(t), Y(p)) : g.moveTo(X(t), Y(p))));
-      g.strokeStyle = col; g.lineWidth = 1.6; g.lineJoin = 'round'; g.stroke();
+    const paint = (alpha) => {
+      for (const sg of segs) {
+        if (sg.length < 2) continue;
+        g.beginPath();
+        sg.forEach(([t, p], i) => (i ? g.lineTo(X(t), Y(p)) : g.moveTo(X(t), Y(p))));
+        g.lineTo(X(sg[sg.length - 1][0]), Y(refP)); g.lineTo(X(sg[0][0]), Y(refP)); g.closePath();
+        g.globalAlpha = 0.14 * alpha; g.fillStyle = col; g.fill();
+        g.beginPath();
+        sg.forEach(([t, p], i) => (i ? g.lineTo(X(t), Y(p)) : g.moveTo(X(t), Y(p))));
+        g.globalAlpha = alpha; g.strokeStyle = col; g.lineWidth = 1.6; g.lineJoin = 'round'; g.stroke();
+      }
+      g.globalAlpha = 1;
+    };
+    if (upto === Infinity) paint(1);
+    else {
+      paint(0.3);
+      g.save(); g.beginPath(); g.rect(0, 0, X(upto), h); g.clip(); paint(1); g.restore();
     }
     if (view.at != null) {
       const x = X(view.at);
       g.strokeStyle = tok.brass; g.lineWidth = 2;
       g.beginPath(); g.moveTo(x, 0); g.lineTo(x, ph); g.stroke(); g.lineWidth = 1;
     }
-    const [lt, lp] = pts[pts.length - 1];
+    const [lt, lp] = pts[k];
     g.beginPath(); g.arc(X(lt), Y(lp), 3, 0, Math.PI * 2); g.fillStyle = col; g.fill();
     g.lineWidth = 2; g.strokeStyle = tok.surface; g.stroke();
     if (sparkHover != null) {
@@ -1590,6 +1633,12 @@ tr.new { animation: flash 1.1s ease-out; }
     seek(P.H(9) + ((e.offsetX - 3) / (w - 6)) * (P.H(16) - P.H(9)), true);
   });
 
+  function verdictOf(close, prev, limits) {
+    const d = close - prev, pct = (Math.abs(d) / prev) * 100;
+    return close === limits.ara ? 'Bulls menang telak: ditutup ARA'
+      : close === limits.arb ? 'Bears menang telak: ditutup ARB'
+      : d > 0 ? (pct >= 3 ? 'Bulls menang' : 'Bulls menang tipis') : d < 0 ? (pct >= 3 ? 'Bears menang' : 'Bears menang tipis') : 'Imbang: ditutup sama dengan acuan';
+  }
   function showVeil(kind) {
     const v = els.veil, m = market;
     if (kind === 'break') {
@@ -1597,11 +1646,32 @@ tr.new { animation: flash 1.1s ease-out; }
       v.innerHTML = `<div class="card"><span class="eyebrow">Istirahat siang</span><h2>Gencatan senjata</h2>` +
         `<p>Sesi 1 selesai. Antrean tetap di tempat; pertempuran lanjut pukul ${fClock(s2.from).slice(0, 5)} WIB.</p><div class="meter"><span id="break-meter"></span></div></div>`;
       v.hidden = false;
+    } else if (kind === 'build' && building) {
+      v.innerHTML = `<div class="card"><span class="eyebrow">${mode === 'hist' ? 'Rekaman' : 'Live'}</span><h2></h2>` +
+        `<p></p><div class="meter"><span id="build-meter"></span></div></div>`;
+      v.querySelector('h2').textContent = building.title;
+      v.querySelector('p').textContent = building.note;
+      v.hidden = false;
+    } else if (kind === 'histEnd' && hist) {
+      const D = hist.D, q = realAt(D, P.H(16)), d = q.price - D.prev, pct = (Math.abs(d) / D.prev) * 100;
+      const i = rec.dates.indexOf(D.date), before = i > 0 ? rec.dates[i - 1] : null;
+      v.innerHTML = `<div class="card"><span class="eyebrow">Rekaman selesai · ${dateLabel(day)}</span>` +
+        `<h2></h2><p class="verdict ${dirClass(q.price, D.prev)}"></p>` +
+        `<dl><div><dt>Open</dt><dd>${fp(q.open)}</dd></div><div><dt>High</dt><dd>${fp(q.high)}</dd></div><div><dt>Low</dt><dd>${fp(q.low)}</dd></div>` +
+        `<div><dt>Volume</dt><dd>${fLot(q.vol / 100)} lot</dd></div><div><dt>Acuan</dt><dd>${fp(D.prev)}</dd></div><div><dt>Penutupan</dt><dd>${fp(q.price)}</dd></div></dl>` +
+        `<p class="fine">Angka di atas data asli ${D.src}. Antrean dan transaksi di medan disimulasikan mengikuti candle-nya.</p>` +
+        `<div class="row"><button class="btn primary" type="button" id="hist-again">Putar dari awal</button>` +
+        (before ? `<button class="btn" type="button" id="hist-before">${shortDate(before)}</button>` : '') +
+        `<button class="btn" type="button" id="veil-close">Tutup</button></div></div>`;
+      v.querySelector('h2').textContent = `${D.code} ditutup ${fp(q.price)} (${sign(d)}${fp(Math.abs(d))} · ${sign(d)}${nf2.format(pct)}%)`;
+      v.querySelector('.verdict').textContent = verdictOf(q.price, D.prev, market.limits);
+      v.hidden = false;
+      $('hist-again').addEventListener('click', () => playFrom(market.plan[0].from, null));
+      if (before) $('hist-before').addEventListener('click', () => openDate(before));
+      $('veil-close').addEventListener('click', () => { veilDismissed = true; showVeil(null); veilKind = null; });
     } else if (kind === 'recap') {
       const close = m.close, d = close - m.prev, pct = (Math.abs(d) / m.prev) * 100;
-      const verdict = close === m.limits.ara ? 'Bulls menang telak: ditutup ARA'
-        : close === m.limits.arb ? 'Bears menang telak: ditutup ARB'
-        : d > 0 ? (pct >= 3 ? 'Bulls menang' : 'Bulls menang tipis') : d < 0 ? (pct >= 3 ? 'Bears menang' : 'Bears menang tipis') : 'Imbang: ditutup sama dengan acuan';
+      const verdict = verdictOf(close, m.prev, m.limits);
       const share = m.haka + m.haki ? Math.round((100 * m.haka) / (m.haka + m.haki)) : 50;
       v.innerHTML = `<div class="card"><span class="eyebrow">Pertempuran selesai · ${dateLabel(day)}</span>` +
         `<h2></h2><p class="verdict ${dirClass(close, m.prev)}"></p>` +
@@ -1617,13 +1687,16 @@ tr.new { animation: flash 1.1s ease-out; }
     } else if (kind === 'sheetClosed' && live) {
       const q = live, d = q.price - q.prev, pct = (Math.abs(d) / q.prev) * 100;
       const when = q.date ? dateLabel(new Date(Date.parse(q.date + 'T00:00:00Z'))) : 'tanggal tidak diketahui';
-      v.innerHTML = `<div class="card"><span class="eyebrow">Data asli · Google Finance</span><h2></h2>` +
-        `<p>Pasar sedang tutup. Data terakhir ${when} pukul ${q.clock != null ? fClock(q.clock) : '–'} WIB, tertunda sekitar ${q.delay || 10} menit.</p>` +
+      const canReplay = rec.dates.includes(q.date);
+      v.innerHTML = `<div class="card"><span class="eyebrow">Data asli · ${q.src}</span><h2></h2>` +
+        `<p>Pasar sedang tutup. Data terakhir ${when} pukul ${q.clock != null ? fClock(q.clock) : '–'} WIB.</p>` +
         `<dl><div><dt>Open</dt><dd>${fp(q.open)}</dd></div><div><dt>High</dt><dd>${fp(q.high)}</dd></div><div><dt>Low</dt><dd>${fp(q.low)}</dd></div>` +
         `<div><dt>Volume</dt><dd>${fLot(q.vol / 100)} lot</dd></div><div><dt>Acuan</dt><dd>${fp(q.prev)}</dd></div><div><dt>Terakhir</dt><dd>${fp(q.price)}</dd></div></dl>` +
-        `<div class="row"><button class="btn primary" type="button" id="sim-next">Simulasikan hari berikutnya</button><button class="btn" type="button" id="veil-close">Tutup</button></div></div>`;
+        `<div class="row">${canReplay ? '<button class="btn primary" type="button" id="sheet-replay">Putar ulang hari itu</button>' : ''}` +
+        `<button class="btn${canReplay ? '' : ' primary'}" type="button" id="sim-next">Simulasikan hari berikutnya</button><button class="btn" type="button" id="veil-close">Tutup</button></div></div>`;
       v.querySelector('h2').textContent = `${q.code} ${fp(q.price)} (${sign(d)}${fp(Math.abs(d))} · ${sign(d)}${nf2.format(pct)}%)`;
       v.hidden = false;
+      if (canReplay) $('sheet-replay').addEventListener('click', () => openDate(q.date));
       $('sim-next').addEventListener('click', () => { setMode('sim'); newDay({ prev: q.price, date: nextTradingDay(day), warm: false }); });
       $('veil-close').addEventListener('click', () => { veilDismissed = true; showVeil(null); veilKind = null; });
     } else v.hidden = true;
@@ -1643,23 +1716,33 @@ tr.new { animation: flash 1.1s ease-out; }
 
   // ================================================================= REKAMAN WAKTU
   // Keadaan pasar direkam tiap 5 detik (waktu pasar) supaya bisa digeser mundur dan diputar ulang.
-  const FRAME_STEP = 5, MAX_FRAMES = 7000, MAX_TRADES = 60000;
+  const FRAME_STEP = 5, MAX_FRAMES = 7000, MAX_TRADES = 60000, MAX_EVENTS = 4000;
   const lastIndexAtOrBefore = (arr, t, key) => {
     let lo = 0, hi = arr.length;
     while (lo < hi) { const mid = (lo + hi) >> 1; if (key(arr[mid]) <= t) lo = mid + 1; else hi = mid; }
     return lo - 1;
   };
   const tape = {
-    frames: [], trades: [], lastT: -Infinity,
-    reset() { this.frames = []; this.trades = []; this.lastT = -Infinity; },
+    frames: [], trades: [], events: [], lastT: -Infinity,
+    reset() { this.frames = []; this.trades = []; this.events = []; this.lastT = -Infinity; },
     head() { return this.frames.length ? this.frames[this.frames.length - 1].t : null; },
     start() { return this.frames.length ? this.frames[0].t : null; },
     addTrades(list) {
       for (const tr of list) this.trades.push(tr);
       if (this.trades.length > MAX_TRADES) this.trades.splice(0, this.trades.length - MAX_TRADES);
     },
+    // Peristiwa disimpan urut waktu supaya kronik ikut mundur saat pita digeser.
+    addEvents(list) {
+      if (!list.length) return;
+      const n = this.events.length;
+      for (const e of list) this.events.push(e);
+      if (n && list[0].t < this.events[n - 1].t) this.events.sort((a, b) => a.t - b.t);
+      if (this.events.length > MAX_EVENTS) this.events.splice(0, this.events.length - MAX_EVENTS);
+    },
     tradeIndexAfter(t) { return lastIndexAtOrBefore(this.trades, t, (x) => x.t) + 1; },
     tradesIn(a, b) { return this.trades.slice(this.tradeIndexAfter(a), this.tradeIndexAfter(b)); },
+    eventIndexAfter(t) { return lastIndexAtOrBefore(this.events, t, (x) => x.t) + 1; },
+    eventsIn(a, b) { return this.events.slice(this.eventIndexAfter(a), this.eventIndexAfter(b)); },
     frameIndex(t) { return Math.max(0, lastIndexAtOrBefore(this.frames, t, (f) => f.t)); },
     record(m) {
       if (m.clock - this.lastT < FRAME_STEP) return;
@@ -1670,7 +1753,7 @@ tr.new { animation: flash 1.1s ease-out; }
         t: m.clock, phase: m.phase, last: m.last, open: m.open, high: m.high, low: m.low,
         volume: m.volume, value: m.value, freq: m.freq, fbuy: m.fbuy, fsell: m.fsell, haka: m.haka, haki: m.haki,
         pb: pr.b, ps: pr.s, iep: iep ? iep.p : null, iev: iep ? iep.v : 0, wallT: m.wallT,
-        B: lv(m.bids, 'B'), S: lv(m.offers, 'S'), real: mode === 'sheet' && live ? Object.assign({}, live) : null,
+        B: lv(m.bids, 'B'), S: lv(m.offers, 'S'), real: realSrc ? realSrc(m.clock) : null,
       });
       if (this.frames.length > MAX_FRAMES) this.frames.splice(0, this.frames.length - MAX_FRAMES);
     },
@@ -1694,9 +1777,21 @@ tr.new { animation: flash 1.1s ease-out; }
       top: (s, n) => (s === 'B' ? f.B : f.S).slice(0, n).map((r) => ({ p: r[0], lot: r[1], freq: r[2], wall: !!r[3] })),
     };
   }
-  const view = { at: null, fm: null, idx: -1, playing: false };
+  // until: jam berhenti otomatis saat memutar satu sesi (untilName untuk pesannya).
+  const view = { at: null, fm: null, idx: -1, playing: false, until: null, untilName: '' };
   const cur = () => view.fm || market;
-  const realQ = () => (view.fm ? view.fm.real : live);
+  const realQ = () => (view.fm ? view.fm.real : realSrc ? realSrc(market.clock) : null);
+
+  // Isi ulang kronik sampai waktu t (null = terkini) dari rekaman peristiwa.
+  function rebuildKronik(t) {
+    els.kronik.textContent = '';
+    const hi = t == null ? tape.events.length : tape.eventIndexAfter(t), shown = [];
+    for (let i = hi - 1; i >= 0 && shown.length < 40; i--) if (shownEvent(tape.events[i])) shown.push(tape.events[i]);
+    for (let i = shown.length - 1; i >= 0; i--) {
+      const d = describe(shown[i]);
+      if (d) kronik(shown[i].t, d.text, d.tag, d.tone);
+    }
+  }
 
   function seek(t, snap, rebuild = true) {
     const head = tape.head();
@@ -1711,24 +1806,42 @@ tr.new { animation: flash 1.1s ease-out; }
       view.fm = frameMarket(tape.frames[i]);
       if (field) { field.m = view.fm; if (snap) field.snapNext = true; }
     }
-    if (rebuild) rebuildTape(view.at);
+    if (rebuild) { rebuildTape(view.at); rebuildKronik(view.at); }
     setStamp();
     renderHeader(); renderBook(); renderStats(); drawSpark(); syncTimebar();
   }
   function followHead() {
     const was = view.fm != null;
-    view.at = null; view.fm = null; view.idx = -1; view.playing = false;
+    view.at = null; view.fm = null; view.idx = -1; view.playing = false; view.until = null;
     if (field && market) { field.m = market; if (was) field.snapNext = true; }
-    if (was) rebuildTape(null);
+    if (was) { rebuildTape(null); rebuildKronik(null); }
     setStamp();
     if (market) { renderHeader(); renderBook(); renderStats(); drawSpark(); }
     syncTimebar();
   }
-  // Putar ulang: maju dari titik yang dilihat, menembakkan transaksi yang terekam, sampai menyusul waktu terkini.
+  // Putar dari jam t; kalau until diisi, berhenti di sana (dipakai pilihan sesi).
+  function playFrom(t, until = null, name = '') {
+    veilDismissed = false;
+    view.playing = true;
+    seek(t, true);
+    view.playing = view.at != null;
+    view.until = view.playing ? until : null;
+    view.untilName = name;
+    syncTimebar();
+  }
+  // Kecepatan putar ulang mengikuti tombol kecepatan; lelang dipercepat dan istirahat dilewati beberapa detik saja.
+  function replayRate() {
+    const ph = cur().phase;
+    if (ph === 'PRE_OPEN') return Math.max(cfg.speed, 60);
+    if (ph === 'PRE_CLOSE') return Math.max(cfg.speed, 40);
+    if (ph === 'BREAK') { const b = market.plan.find((x) => x.phase === 'BREAK'); return (b.to - b.from) / (reduceMotion ? 3 : 6); }
+    return cfg.speed;
+  }
+  // Putar ulang: maju dari titik yang dilihat, menembakkan transaksi yang terekam, sampai akhir sesi pilihan atau waktu terkini.
   function advanceReplay(dt) {
     if (!view.playing || view.at == null) return;
-    const head = tape.head(), from = view.at;
-    const to = Math.min(head, from + dt * (mode === 'sim' ? cfg.speed : 10));
+    const head = tape.head(), from = view.at, rate = replayRate();
+    const to = Math.min(head, view.until != null ? Math.max(from, view.until) : head, from + dt * rate);
     const trs = tape.tradesIn(from, to);
     if (trs.length) {
       if (field) field.onTrades(trs.length > 40 ? trs.slice(-40) : trs);
@@ -1736,8 +1849,15 @@ tr.new { animation: flash 1.1s ease-out; }
       while (els.rtBody.children.length > 60) els.rtBody.lastChild.remove();
       $('rt-empty').hidden = true;
     }
+    handleEvents(tape.eventsIn(from, to), rate > 60);
     if (to >= head - 0.5) { followHead(); return; }
     seek(to, false, false);
+    if (view.until != null && to >= view.until) {
+      view.playing = false;
+      view.until = null;
+      toast(`${view.untilName} selesai. Tekan putar untuk lanjut.`, 'Sesi', 'neutral');
+      syncTimebar();
+    }
   }
 
   // Pita mewakili rentang yang sudah terekam; warna menandai sesi (lelang, perdagangan, istirahat).
@@ -1749,7 +1869,9 @@ tr.new { animation: flash 1.1s ease-out; }
     for (const seg of market.plan) if (color[seg.phase] && seg.to > t0 && seg.from < t1) stops.push(`${color[seg.phase]} ${pct(seg.from)} ${pct(seg.to)}`);
     $('tb-bands').style.background = stops.length ? `linear-gradient(90deg, ${stops.join(', ')})` : '';
   }
-  const tbRange = $('tb-range');
+  const tbRange = $('tb-range'), sesiSel = $('tb-sesi'), dateSel = $('tb-date');
+  const SESI_NAME = { PRE_OPEN: 'Pre-opening', S1: 'Sesi 1', S2: 'Sesi 2', PRE_CLOSE: 'Pre-closing' };
+  const SESI_SHORT = { PRE_OPEN: 'Pre-open', S1: 'Sesi 1', S2: 'Sesi 2', PRE_CLOSE: 'Pre-close' };
   function syncTimebar() {
     const head = tape.head(), has = head != null;
     for (const id of ['tb-back', 'tb-play', 'tb-fwd']) $(id).disabled = !has;
@@ -1757,6 +1879,10 @@ tr.new { animation: flash 1.1s ease-out; }
     $('tb-play').innerHTML = view.playing ? ICON_PAUSE : ICON_PLAY;
     $('tb-play').setAttribute('aria-label', view.playing ? 'Jeda putar ulang' : 'Putar ulang dari titik ini');
     $('tb-now').setAttribute('aria-pressed', String(view.at == null));
+    setText($('tb-now'), mode === 'hist' ? 'Akhir' : 'Sekarang');
+    $('tb-now').title = mode === 'hist' ? 'Lompat ke akhir rekaman' : 'Kembali ke waktu terkini';
+    // Pilihan sesi ikut menunjukkan sesi yang sedang dilihat, kecuali saat sedang dipakai.
+    if (market && document.activeElement !== sesiSel) sesiSel.value = cur().phase;
     if (!has) { paintBands(0, 0); setText($('tb-time'), '--:--:--'); return; }
     const start = tape.start(), end = Math.max(head, start + FRAME_STEP);
     if (!tbDragging) {
@@ -1774,15 +1900,14 @@ tr.new { animation: flash 1.1s ease-out; }
   $('tb-back').addEventListener('click', () => { view.playing = false; seek((view.at != null ? view.at : tape.head()) - 60, true); });
   $('tb-fwd').addEventListener('click', () => { if (view.at != null) seek(view.at + 60, true); });
   $('tb-now').addEventListener('click', followHead);
-  $('tb-play').addEventListener('click', () => {
+  function togglePlay() {
     if (view.playing) view.playing = false;
-    else {
-      // Dari waktu terkini: mundur 10 menit dulu, lalu putar.
-      if (view.at == null) seek(Math.max(tape.start(), tape.head() - 600), true);
-      view.playing = view.at != null;
-    }
+    // Dari akhir rekaman: putar dari awal hari. Dari waktu terkini: mundur 10 menit dulu, lalu putar.
+    else if (view.at == null) playFrom(mode === 'hist' ? tape.start() : Math.max(tape.start(), tape.head() - 600));
+    else view.playing = true;
     syncTimebar();
-  });
+  }
+  $('tb-play').addEventListener('click', togglePlay);
   // Gulir di pita waktu menggeser 30 detik per langkah.
   $('tb-track').addEventListener('wheel', (e) => {
     if (tape.head() == null) return;
@@ -1792,11 +1917,55 @@ tr.new { animation: flash 1.1s ease-out; }
     seek((view.at != null ? view.at : tape.head()) + step, true);
   }, { passive: false });
 
+  // Pilih sesi: lompat ke awalnya dan putar sampai selesai. Di simulasi, sesi yang belum tiba dicapai dengan memajukan simulasi.
+  function gotoSession(ph) {
+    const seg = market && market.plan.find((s) => s.phase === ph);
+    if (!seg || building) return;
+    const name = SESI_NAME[ph];
+    if (mode === 'hist' && hist) setUrl(hist.D.date, ph);
+    if (mode === 'sim' && seg.from > market.clock) { fastForward(seg.from, name); return; }
+    const head = tape.head();
+    if (head == null || seg.from > head) {
+      toast(`${name} belum dimulai, buka pukul ${fClock(seg.from).slice(0, 5)} WIB`, 'Sesi', 'neutral');
+      syncTimebar();
+      return;
+    }
+    // Pre-opening berhenti tepat setelah harga pembukaan terbentuk; pre-closing diputar sampai penutupan.
+    const until = ph === 'PRE_OPEN' ? seg.to + FRAME_STEP : ph === 'PRE_CLOSE' ? null : seg.to - 1;
+    playFrom(Math.max(seg.from, tape.start()), until, name);
+  }
+  sesiSel.addEventListener('change', () => gotoSession(sesiSel.value));
+
   function stepSim(dt) { sim.step(dt); tape.record(market); }
   function runSimUntil(t) { while (market.clock < t && market.phase !== 'CLOSED') stepSim(Math.min(0.5, t - market.clock)); }
+  // Simulasikan sampai jam `until` sepotong demi sepotong supaya halaman tetap responsif; job.title dan
+  // job.note tampil di tirai selama berjalan. anchorAt(t) menambatkan harga wajar ke jalur harga asli.
+  // Hasilnya false kalau dibatalkan karena pengguna sudah pindah tanggal atau mode.
+  async function runChunked(until, job, anchorAt) {
+    building = job;
+    const t0 = market.clock;
+    while (market.clock < until && market.phase !== 'CLOSED') {
+      const stop = Math.min(until, market.clock + 1800);
+      while (market.clock < stop && market.phase !== 'CLOSED') {
+        if (anchorAt) sim.setAnchor(anchorAt(market.clock));
+        stepSim(Math.min(0.5, stop - market.clock));
+      }
+      const { trades, events } = market.drain();
+      tape.addTrades(trades);
+      tape.addEvents(events);
+      const meter = $('build-meter');
+      if (meter) meter.style.width = (100 * clamp((market.clock - t0) / Math.max(1, until - t0), 0, 1)).toFixed(1) + '%';
+      await new Promise((r) => setTimeout(r, 0));
+      if (building !== job) return false;
+    }
+    building = null;
+    return true;
+  }
 
   // ================================================================= MODE SIMULASI
   function newDay({ prev = cfg.prev, date = day, warm = true } = {}) {
+    building = null;
+    realSrc = null;
     day = date;
     market = new P.Market({ code: cfg.code, prev, date: isoOf(day), dow: day.getUTCDay() });
     sim = new P.Simulator(market, { scenario: cfg.scenario });
@@ -1807,6 +1976,7 @@ tr.new { animation: flash 1.1s ease-out; }
       runSimUntil(P.H(9, 0, 50));
       const { trades, events } = market.drain();
       tape.addTrades(trades);
+      tape.addEvents(events);
       handleEvents(events, true);
       rtBuf = trades.slice(-14);
     }
@@ -1831,15 +2001,180 @@ tr.new { animation: flash 1.1s ease-out; }
     const simDt = dt * rate, n = Math.min(240, Math.ceil(simDt / 0.5)), h = simDt / n;
     for (let i = 0; i < n; i++) { stepSim(h); if (m.phase !== ph) break; }
   }
+  // Sesi yang belum tiba di simulasi: majukan cepat sampai awal sesi itu, lalu lanjut seperti biasa.
+  async function fastForward(t, name) {
+    followHead();
+    const ok = await runChunked(t, { title: `Memajukan simulasi ke ${name}`, note: 'Pasar disimulasikan cepat sampai awal sesi itu.' }, null);
+    if (!ok) return;
+    rebuildTape(null);
+    rebuildKronik(null);
+    renderAll();
+  }
 
-  // ================================================================= MODE LIVE (GOOGLE SHEETS)
-  // Harga asli dari fungsi GOOGLEFINANCE di Google Sheets (tertunda sekitar 10 menit untuk BEI).
-  // Kolom sheet: Kode, Harga, Pembukaan, Tertinggi, Terendah, Volume (lembar), Penutupan kemarin,
-  // Waktu transaksi (yyyy-mm-dd hh:mm:ss, WIB), Tunda (menit). Ganti sheet dengan ?sheet=<ID>.
+  // ================================================================= REKAMAN HARGA ASLI
+  // Workflow "Rekam harga SRSN" menyimpan candle Yahoo Finance tiap 10 menit di branch data-srsn:
+  // <KODE>/index.json berisi daftar tanggal, <KODE>/<tanggal>.json berisi satu hari (lihat README di branch itu).
+  const DATA_URL = 'https://raw.githubusercontent.com/Zenithxyz2512/halo/data-srsn/';
+  const rec = { code: DEFAULT_CODE, dates: [], cache: new Map() };
+  async function fetchJson(url, fresh) {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 9000);
+    try {
+      // Rekaman hari ini berubah tiap 10 menit; parameter t melewati cache CDN GitHub (5 menit).
+      const res = await fetch(fresh ? `${url}?t=${Math.floor(Date.now() / 60000)}` : url, { signal: ctl.signal, cache: fresh ? 'no-store' : 'default', credentials: 'omit' });
+      if (res.status === 404) throw Object.assign(new Error('Rekaman tidak ditemukan'), { why: 'missing' });
+      if (!res.ok) throw Object.assign(new Error('GitHub menjawab ' + res.status), { why: 'http' });
+      return await res.json();
+    } catch (e) {
+      if (!e.why) e.why = e.name === 'AbortError' ? 'timeout' : e.name === 'SyntaxError' ? 'bad' : 'blocked';
+      throw e;
+    } finally { clearTimeout(timer); }
+  }
+  const explainData = (e) => ({
+    missing: 'rekamannya tidak ada', blocked: 'hanya bisa dibuka di versi web', timeout: 'server data tidak menjawab', bad: 'datanya tidak terbaca',
+  })[e.why] || e.message;
+
+  // Satu hari rekaman, harga asli per jam, dan jalur tambatan simulasi: lihat bagian "rekaman candle" di engine.js.
+  const { parseDay, realAt, anchorPath } = P;
+  // Peristiwa dari data asli untuk kronik: pembukaan, tertinggi/terendah baru (digabung per 10 menit),
+  // sentuh ARA/ARB, lima lonjakan volume terbesar, dan penutupan.
+  function realEvents(D) {
+    const out = [], lim = P.arLimits(D.prev, D.date), unit = D.step === 60 ? '1 menit' : '5 menit';
+    const ev = (t, tag, tone, text, toast) => out.push({ t, kind: 'real', tag, tone, text, toast });
+    const cont = D.bars.filter((b) => b.t < P.H(16)), end = (b) => Math.min(b.t + D.step, P.H(16));
+    ev(P.H(9), 'Buka', 'brass', `Harga pembukaan asli ${fp(D.open)}`, true);
+    let hi = D.open, lo = D.open, pend = null, ara = false, arb = false;
+    const flush = () => {
+      if (pend) ev(pend.t, pend.up ? 'High' : 'Low', pend.up ? 'bull' : 'bear', `${pend.up ? 'Tertinggi' : 'Terendah'} baru hari ini: ${fp(pend.p)}`, false);
+      pend = null;
+    };
+    for (const b of cont) {
+      const t = end(b);
+      for (const up of [true, false]) {
+        const p = up ? b.h : b.l;
+        if (up ? p <= hi : p >= lo) continue;
+        if (up) hi = p; else lo = p;
+        if (pend && pend.up === up && t - pend.t <= 600) { pend.t = t; pend.p = p; } else { flush(); pend = { up, t, p }; }
+      }
+      if (!ara && b.h >= lim.ara) { ara = true; ev(t, 'ARA', 'bull', `Menyentuh ARA ${fp(lim.ara)}`, true); }
+      if (!arb && b.l <= lim.arb) { arb = true; ev(t, 'ARB', 'bear', `Menyentuh ARB ${fp(lim.arb)}`, true); }
+    }
+    flush();
+    const vols = cont.map((b) => b.v).filter((v) => v > 0).sort((a, b) => a - b), med = vols.length ? vols[vols.length >> 1] : 0;
+    for (const b of cont.filter((x) => med && x.v >= 6 * med).sort((a, b) => b.v - a.v).slice(0, 5)) {
+      ev(end(b), 'Volume', b.c > b.o ? 'bull' : b.c < b.o ? 'bear' : 'neutral', `Lonjakan volume asli: ${fLot(b.v / 100)} lot dalam ${unit} di ${fp(b.c)}`, true);
+    }
+    if (D.complete) ev(P.H(16), 'Tutup', 'brass', `Harga penutupan asli ${fp(D.close)}`, true);
+    return out.sort((a, b) => a.t - b.t);
+  }
+  // Benih acak per tanggal supaya satu rekaman selalu tersusun sama setiap kali diputar.
+  const seedOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+
+  async function loadDay(code, date, fresh) {
+    const key = code + '/' + date;
+    if (!fresh && rec.cache.has(key)) return rec.cache.get(key);
+    const D = parseDay(await fetchJson(`${DATA_URL}${key}.json`, fresh));
+    if (!D.code) D.code = code;
+    rec.cache.set(key, D);
+    return D;
+  }
+  // Daftar tanggal rekaman: kode yang sedang dipakai kalau direkam, kalau tidak SRSN.
+  async function refreshDates(fresh) {
+    for (const code of [...new Set([cfg.code, DEFAULT_CODE])]) {
+      try {
+        const j = await fetchJson(`${DATA_URL}${code}/index.json`, fresh);
+        if (rec.code !== code) rec.cache.clear();
+        rec.code = code;
+        rec.dates = (Array.isArray(j.dates) ? j.dates : []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+        fillDates();
+        return rec.dates;
+      } catch (e) {
+        if (e.why !== 'missing') { fillDates(); throw e; }
+      }
+    }
+    rec.dates = [];
+    fillDates();
+    return rec.dates;
+  }
+  function fillDates() {
+    const keep = mode === 'hist' && hist ? hist.D.date : '', sig = rec.dates.join();
+    // Daftar dibangun ulang hanya kalau berubah, supaya pilihan yang sedang terbuka tidak tertutup tiap pengecekan.
+    if (dateSel.dataset.sig !== sig) {
+      dateSel.dataset.sig = sig;
+      dateSel.textContent = '';
+      dateSel.append(new Option('Hari ini', ''));
+      for (const d of rec.dates.slice().reverse()) dateSel.append(new Option(shortDate(d), d));
+    }
+    dateSel.value = rec.dates.includes(keep) ? keep : '';
+    dateSel.hidden = !rec.dates.length;
+  }
+  // Tanggal dan sesi yang sedang diputar disimpan di alamat halaman supaya bisa dibagikan.
+  function setUrl(date, sesi) {
+    try {
+      const u = new URL(location.href);
+      if (date) u.searchParams.set('tanggal', date); else u.searchParams.delete('tanggal');
+      if (date && sesi) u.searchParams.set('sesi', sesi); else u.searchParams.delete('sesi');
+      if (u.href !== location.href) history.replaceState(null, '', u);
+    } catch (e) { /* pratinjau tanpa akses alamat */ }
+  }
+
+  // Putar ulang satu hari rekaman: seluruh hari disusun ulang oleh simulasi yang ditambatkan ke candle asli,
+  // lalu diputar dari awal hari atau dari sesi pilihan.
+  async function openDate(date, sesi) {
+    const job = { title: `Menyusun ulang ${dateLabel(new Date(Date.parse(date + 'T00:00:00Z')))}`, note: 'Mengambil candle harga asli…' };
+    building = job;
+    setMode('hist');
+    dateSel.value = rec.dates.includes(date) ? date : '';
+    veilKind = 'build';
+    showVeil('build');
+    let D;
+    try {
+      D = await loadDay(rec.code, date, date === isoOf(wibNow()));
+    } catch (e) {
+      if (building !== job) return;
+      building = null;
+      toast(`Rekaman ${shortDate(date)} tidak bisa dibuka: ${explainData(e)}`, 'Rekaman', 'neutral');
+      leaveHist();
+      return;
+    }
+    if (building !== job) return;
+    hist = { D };
+    fillDates();
+    job.note = `Candle ${D.step / 60} menit asli dari ${D.src}. Antrean dan transaksi disimulasikan mengikuti candle itu.`;
+    day = new Date(Date.parse(D.date + 'T00:00:00Z'));
+    market = new P.Market({ code: D.code, prev: D.prev, date: D.date, dow: day.getUTCDay() });
+    sim = new P.Simulator(market, { seed: seedOf(D.code + D.date) });
+    realSrc = (t) => realAt(D, t);
+    resetUi();
+    tape.reset();
+    followHead();
+    setStatic();
+    if (field) field.setMarket(market);
+    if (!(await runChunked(D.complete ? P.H(16, 0, 1) : D.lastKnown, job, anchorPath(D)))) return;
+    tape.addEvents(realEvents(D).filter((e) => e.t <= D.lastKnown));
+    rebuildTape(null);
+    rebuildKronik(null);
+    setUrl(D.date, sesi);
+    if (SESI_NAME[sesi]) gotoSession(sesi); else playFrom(tape.start());
+  }
+  // Kembali ke hari ini dengan sumber yang terakhir dipilih.
+  function leaveHist() {
+    const preferLive = store.get('source', 'sheet') === 'sheet';
+    setMode('sim', false);
+    newDay({ prev: cfg.prev, date: tradingDay(wibNow()), warm: true });
+    if (preferLive) trySheet(true);
+  }
+  dateSel.addEventListener('change', () => { if (dateSel.value) openDate(dateSel.value); else leaveHist(); });
+
+  // ================================================================= MODE LIVE
+  // Sumber utama: rekaman candle hari ini di branch data-srsn (Yahoo Finance, tertunda ±10 menit, direkam
+  // tiap 10 menit). Cadangan: Google Sheet berisi GOOGLEFINANCE, yang hanya segar selama sheet itu sedang
+  // dibuka pemiliknya. Kolom sheet: Kode, Harga, Pembukaan, Tertinggi, Terendah, Volume (lembar),
+  // Penutupan kemarin, Waktu transaksi (yyyy-mm-dd hh:mm:ss, WIB). Ganti sheet dengan ?sheet=<ID>.
   const SHEET_ID = (new URLSearchParams(location.search).get('sheet') || '13HzYceK4HQpsFVIlyWvMLnrOhvCgMJFdcG0lINceCwE').replace(/[^\w-]/g, '');
   const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=0&headers=1`;
   const POLL_MS = 120000;
-  let live = null, liveQuotes = null, sheetOpen = false, snaps = [], sheetBusy = false, liveProblem = null;
+  // live: kutipan asli terbaru; liveDay: rekaman candle hari bursa terakhir; liveRealT: peristiwa asli terakhir di kronik.
+  let live = null, liveDay = null, liveRealT = -Infinity, sheetOpen = false, snaps = [], sheetBusy = false, liveProblem = null;
   const WEB_URL = 'https://zenithxyz2512.github.io/halo/palagan-saham/';
 
   const wibClock = () => { const w = wibNow(); return w.getUTCHours() * 3600 + w.getUTCMinutes() * 60 + w.getUTCSeconds(); };
@@ -1864,7 +2199,7 @@ tr.new { animation: flash 1.1s ease-out; }
     const t = /^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})/.exec(String(r[7] || '').trim());
     return {
       code, price, prev, open: whole(r[2]), high: whole(r[3]), low: whole(r[4]), vol: whole(r[5]) || 0,
-      date: t ? t[1] : null, clock: t ? P.H(+t[2], +t[3], +t[4]) : null, delay: whole(r[8]),
+      date: t ? t[1] : null, clock: t ? P.H(+t[2], +t[3], +t[4]) : null, src: 'Google Finance',
     };
   }
   async function fetchQuotes() {
@@ -1882,11 +2217,10 @@ tr.new { animation: flash 1.1s ease-out; }
       throw e;
     } finally { clearTimeout(timer); }
   }
-  const pickQuote = (quotes) => quotes.find((q) => q.code === cfg.code) || quotes.find((q) => q.code === DEFAULT_CODE) || quotes[0];
   function explain(e) {
-    if (e.why === 'private') return 'Sheet harga belum dibagikan. Di Google Sheets: Bagikan → Akses umum → Siapa saja yang memiliki link (Pelihat).';
     if (e.why === 'blocked') return 'Data live tidak bisa diambil di halaman ini. Buka versi web: zenithxyz2512.github.io/halo/palagan-saham/';
-    if (e.why === 'timeout') return 'Google Sheets tidak menjawab. Dicoba lagi otomatis.';
+    if (e.why === 'timeout') return 'Server data tidak menjawab. Dicoba lagi otomatis.';
+    if (e.why === 'missing' || e.why === 'empty' || e.why === 'private') return 'Belum ada rekaman harga untuk saham ini.';
     return e.message;
   }
 
@@ -1905,12 +2239,20 @@ tr.new { animation: flash 1.1s ease-out; }
     const rate = clamp(lps / (0.45 * base), 0.08, 2.5);
     return { price: q.price, rate, median: Math.max(1, lps / rate / 1.65) };
   }
+  // Tambatan untuk sisa hari: harga asli terbaru, laju transaksi dari sepuluh candle terakhir bila ada.
+  function liveAnchor() {
+    const D = liveDay && liveDay.date === live.date ? liveDay : null, recent = D ? D.bars.filter((b) => b.t < P.H(16)).slice(-10) : [];
+    if (!recent.length) return anchorFrom(live, null, P.sessionPlan(day.getUTCDay()));
+    const lps = recent.reduce((s, b) => s + b.v, 0) / 100 / (recent.length * D.step);
+    const rate = clamp(lps / (0.45 * P.baseLotFor(live.price)), 0.08, 2.5);
+    return { price: live.price, rate, median: Math.max(1, lps / rate / 1.65) };
+  }
   function sessionOpenNow(q) {
     const w = wibNow(), dow = w.getUTCDay();
     if (dow === 0 || dow === 6) return false;
     const ph = P.phaseAt(P.sessionPlan(dow), wibClock());
     if (ph === 'CLOSED') return false;
-    // Data tertunda ~10 menit: di awal sesi transaksi hari ini mungkin belum muncul.
+    // Data tertunda: di awal sesi transaksi hari ini mungkin belum muncul.
     return ph === 'PRE_OPEN' || q.date === isoOf(w) || wibClock() < P.H(9, 30);
   }
   const snapKey = (q) => `snaps:${q.code}:${q.date}`;
@@ -1929,21 +2271,25 @@ tr.new { animation: flash 1.1s ease-out; }
   function setMode(next, remember = true) {
     mode = next;
     document.querySelector('.app').dataset.mode = next;
-    if (remember && next !== 'live') store.set('source', next);
+    if (remember && (next === 'sim' || next === 'sheet')) store.set('source', next);
     for (const b of document.querySelectorAll('#source button')) b.setAttribute('aria-pressed', String(b.dataset.src === next));
+    if (next !== 'hist') { hist = null; dateSel.value = ''; setUrl(null); }
+    const real = next === 'sheet' || next === 'hist';
+    if (!real) realSrc = null;
     setStamp();
-    setText($('book-sub'), next === 'sheet' ? 'simulasi di sekitar harga asli' : '10 level · lot');
-    setText($('rt-sub'), next === 'sheet' ? 'simulasi · F asing, D lokal' : 'B·S: F asing, D lokal');
+    setText($('book-sub'), real ? 'simulasi di sekitar harga asli' : '10 level · lot');
+    setText($('rt-sub'), real ? 'simulasi · F asing, D lokal' : 'B·S: F asing, D lokal');
     if (next === 'sheet') $('sheet-status').hidden = false;
-    else if (!liveProblem) $('sheet-status').hidden = true;
+    else if (!liveProblem || next === 'hist') $('sheet-status').hidden = true;
     if (field) {
-      field.flagPrice = next === 'sheet' ? () => { const q = realQ(); return q ? q.price : null; } : null;
-      field.flagRef = next === 'sheet' ? () => { const q = realQ(); return q ? q.prev : null; } : null;
+      field.flagPrice = real ? () => { const q = realQ(); return q ? q.price : null; } : null;
+      field.flagRef = real ? () => { const q = realQ(); return q ? q.prev : null; } : null;
     }
   }
   function setStamp() {
-    if (view.fm) { $('stamp').textContent = 'REPLAY'; return; }
-    $('stamp').textContent = mode === 'sheet' ? (live ? `TERTUNDA ${live.delay || 10} MNT` : 'LIVE') : mode === 'live' ? 'FEED' : 'SIMULASI';
+    let s = mode === 'hist' ? 'REKAMAN' : view.fm ? 'REPLAY' : mode === 'live' ? 'FEED' : mode === 'sim' ? 'SIMULASI' : 'LIVE';
+    if (mode === 'sheet' && !view.fm && live && live.date === isoOf(wibNow()) && sheetOpen) s = `TERTUNDA ${Math.max(0, Math.round((wibClock() - live.clock) / 60))} MNT`;
+    setText($('stamp'), s);
   }
   function setSheetStatus(text) { const el = $('sheet-status'); el.className = 'live-note'; el.hidden = false; el.textContent = text; }
   // Alasan Live belum bisa, ditampilkan tepat di samping tombolnya.
@@ -1959,63 +2305,99 @@ tr.new { animation: flash 1.1s ease-out; }
       const a = document.createElement('a'); a.href = WEB_URL; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'versi web';
       el.append(a);
     } else {
-      el.append(e.why === 'private' ? 'Live belum aktif: sheet belum dibagikan. ' : 'Live gagal: ' + explain(e) + ' ');
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = e.why === 'private' ? 'Caranya' : 'Coba lagi';
-      b.addEventListener('click', () => (e.why === 'private' ? openLiveHelp() : trySheet(true)));
+      el.append('Live gagal: ' + explain(e) + ' ');
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Coba lagi';
+      b.addEventListener('click', () => trySheet(true));
       el.append(b);
     }
   }
-  function openLiveHelp() {
-    $('live-help-sheet').href = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
-    setText($('live-help-why'), liveProblem === 'private'
-      ? 'Halaman ini membaca harga dari Google Sheets, tapi sheet-nya masih privat sehingga Google menolak permintaannya.'
-      : 'Halaman ini membaca harga dari Google Sheets milikmu. Pastikan sheet-nya bisa dilihat siapa saja yang memiliki link.');
-    $('live-help').hidden = false;
-    $('live-help-retry').focus();
+
+  // Ambil kutipan terbaru dari rekaman GitHub dan dari sheet, pakai yang paling baru.
+  async function fetchLive() {
+    const [recd, sheet] = await Promise.allSettled([
+      refreshDates(true).then((dates) => (dates.length ? loadDay(rec.code, dates[dates.length - 1], true) : null)),
+      fetchQuotes(),
+    ]);
+    const D = recd.status === 'fulfilled' ? recd.value : null;
+    const fromRec = D ? realAt(D, Infinity) : null;
+    const fromSheet = sheet.status === 'fulfilled' ? sheet.value.find((q) => q.code === rec.code && q.date) || null : null;
+    const later = (a, b) => (a.date !== b.date ? a.date > b.date : (a.clock || 0) >= (b.clock || 0));
+    const q = !fromSheet ? fromRec : !fromRec ? fromSheet : later(fromRec, fromSheet) ? fromRec : fromSheet;
+    if (!q) {
+      const why = (r) => (r.status === 'rejected' ? r.reason : null);
+      throw (why(recd) && why(recd).why !== 'missing' ? why(recd) : why(sheet)) || Object.assign(new Error('Belum ada data'), { why: 'empty' });
+    }
+    return { q, D };
+  }
+  // Peristiwa asli yang belum masuk kronik (candle baru sejak pengecekan sebelumnya).
+  function addLiveEvents(D, announce) {
+    if (!D || D.date !== isoOf(day)) return;
+    const fresh = realEvents(D).filter((e) => e.t > liveRealT && e.t <= D.lastKnown);
+    if (!fresh.length) return;
+    liveRealT = fresh[fresh.length - 1].t;
+    tape.addEvents(fresh);
+    if (!view.fm && announce) handleEvents(fresh, false);
   }
 
-  function startSheet(quotes) {
-    const q = pickQuote(quotes);
-    liveQuotes = quotes; live = q;
+  // Bangun hari ini: kalau pasar buka, simulasikan sejak 08:45 mengikuti candle asli yang sudah ada,
+  // lalu lanjut di sekitar harga terbaru sampai jam sekarang. Kalau tutup, tampilkan data terakhir.
+  function startSheet() {
+    const q = live, today = isoOf(wibNow());
+    building = null;
     setMode('sheet');
     loadSnaps(q);
     resetUi();
+    liveRealT = -Infinity;
     sheetOpen = sessionOpenNow(q);
     if (sheetOpen) {
-      const w = wibNow();
-      day = new Date(Date.parse(isoOf(w) + 'T00:00:00Z'));
-      const plan = P.sessionPlan(day.getUTCDay()), now = wibClock();
-      // Bangun antrean dari 10 menit terakhir perdagangan; saat istirahat, mundur ke akhir sesi 1.
-      let start = Math.max(plan[0].from, now - 600);
-      if (P.phaseAt(plan, start) === 'BREAK') start = plan.find((x) => x.phase === 'S1').to - 600;
-      market = new P.Market({ code: q.code, prev: q.prev, date: isoOf(day), dow: day.getUTCDay(), clock: start });
-      sim = new P.Simulator(market, {});
-      sim.setAnchor(anchorFrom(q, null, plan));
+      day = new Date(Date.parse(today + 'T00:00:00Z'));
+      const D = liveDay && liveDay.date === today ? liveDay : null;
+      // Sebelum transaksi pertama hari ini masuk, harga acuan = penutupan hari bursa terakhir.
+      const prev = q.date === today ? q.prev : q.price;
+      // Tanpa candle hari ini jalurnya tidak diketahui: antrean cukup dibangun dari 10 menit terakhir
+      // (saat istirahat, dari akhir sesi 1).
+      const plan = P.sessionPlan(day.getUTCDay());
+      let start = plan[0].from;
+      if (!D) {
+        start = Math.max(plan[0].from, wibClock() - 600);
+        if (P.phaseAt(plan, start) === 'BREAK') start = plan.find((x) => x.phase === 'S1').to - 600;
+      }
+      market = new P.Market({ code: q.code, prev, date: today, dow: day.getUTCDay(), clock: start });
+      sim = new P.Simulator(market, { seed: seedOf(q.code + today) });
+      realSrc = (t) => (D && t <= D.lastKnown ? realAt(D, t) : live && live.date === today ? live : null);
       tape.reset();
       followHead();
-      runSimUntil(now);
-      const { trades } = market.drain();
-      tape.addTrades(trades);
-      rtBuf = trades.slice(-14);
+      setStatic();
+      if (field) field.setMarket(market);
+      const path = D && anchorPath(D), tail = liveAnchor();
+      const job = { title: 'Menyusun hari ini', note: D ? 'Mengikuti candle asli sejak pembukaan, lalu lanjut di sekitar harga terbaru.' : 'Candle hari ini belum masuk; antrean disimulasikan di sekitar harga acuan.' };
+      runChunked(wibClock(), job, (t) => (path && t <= D.lastKnown ? path(t) : tail)).then((ok) => {
+        if (!ok) return;
+        sim.setAnchor(tail);
+        addLiveEvents(D, false);
+        rebuildTape(null);
+        rebuildKronik(null);
+        renderAll();
+      });
     } else {
       day = q.date ? new Date(Date.parse(q.date + 'T00:00:00Z')) : tradingDay(wibNow());
       market = new P.Market({ code: q.code, prev: q.prev, date: isoOf(day), dow: day.getUTCDay(), clock: P.H(16, 0, 1) });
       sim = null;
+      realSrc = () => live;
       tape.reset();
       followHead();
       setText($('rt-empty'), 'Pasar tutup. Transaksi simulasi muncul lagi saat sesi berikutnya dibuka.');
+      setStatic();
+      if (field) field.setMarket(market);
     }
     setStamp();
-    kronik(q.clock != null ? q.clock : wibClock(), `Data asli dimuat: ${q.code} ${fp(q.price)}, volume ${fLot(q.vol / 100)} lot`, 'Live', 'brass');
-    setStatic();
-    if (field) field.setMarket(market);
-    setSheetStatus(`Dicek tiap 2 menit`);
+    setSheetStatus('Dicek tiap 2 menit');
     renderAll();
   }
   function advanceSheet() {
-    if (!sheetOpen || !sim) return;
+    if (!sheetOpen || !sim || building) return;
     const now = wibClock();
-    if (now - market.clock > 300 || now < market.clock - 60) { startSheet(liveQuotes); return; }
+    if (now - market.clock > 300 || now < market.clock - 60) { startSheet(); return; }
     let n = 0;
     while (market.clock < now && n++ < 240) stepSim(Math.min(0.5, now - market.clock));
     if (market.phase === 'CLOSED') sheetOpen = false;
@@ -2024,38 +2406,37 @@ tr.new { animation: flash 1.1s ease-out; }
     if (sheetBusy) return;
     sheetBusy = true;
     const liveBtn = document.querySelector('#source button[data-src="sheet"]');
-    if (announce) { liveBtn.setAttribute('aria-busy', 'true'); setSheetStatus('Menghubungkan ke Google Sheets…'); }
+    if (announce) { liveBtn.setAttribute('aria-busy', 'true'); setSheetStatus('Mengambil harga asli…'); }
     try {
-      const quotes = await fetchQuotes();
+      const { q, D } = await fetchLive();
       showLiveProblem(null);
       if (mode === 'live') return;
+      const before = live;
+      live = q; liveDay = D;
       if (mode !== 'sheet') {
-        liveQuotes = quotes;
-        if (autoSwitch) startSheet(quotes); else $('sheet-status').hidden = true;
+        if (autoSwitch) startSheet(); else $('sheet-status').hidden = true;
         return;
       }
-      const q = pickQuote(quotes), before = live;
-      liveQuotes = quotes;
+      if (building) return;
       const changed = !before || q.price !== before.price || q.vol !== before.vol || q.clock !== before.clock || q.date !== before.date;
       if (!changed) { setSheetStatus('Dicek tiap 2 menit'); return; }
-      live = q;
-      setStamp();
-      if (before && before.date !== q.date) { startSheet(quotes); return; }
+      // Hari berganti atau pasar baru buka/tutup: susun ulang.
+      if ((before && before.date !== q.date) || sheetOpen !== sessionOpenNow(q)) { startSheet(); return; }
       recordSnap(q);
-      if (sim) sim.setAnchor(anchorFrom(q, before, market.plan));
+      if (sim) sim.setAnchor(liveAnchor());
+      addLiveEvents(D, true);
       if (before && q.price !== before.price) {
-        const d = q.price - before.price;
-        kronik(q.clock != null ? q.clock : wibClock(), `Harga asli ${fp(q.price)} (${sign(d)}${fp(Math.abs(d))} dari data sebelumnya)`, 'Live', d > 0 ? 'bull' : 'bear');
+        const d = q.price - before.price, e = { t: q.clock != null ? q.clock : wibClock(), kind: 'real', tag: 'Live', tone: d > 0 ? 'bull' : 'bear', text: `Harga asli ${fp(q.price)} (${sign(d)}${fp(Math.abs(d))} dari data sebelumnya)`, toast: false };
+        tape.addEvents([e]);
+        if (!view.fm) handleEvents([e], true);
       }
-      if (!sheetOpen && sessionOpenNow(q)) { startSheet(quotes); return; }
       if (veilKind === 'sheetClosed') showVeil('sheetClosed');
       setSheetStatus('Dicek tiap 2 menit');
     } catch (e) {
       if (mode === 'sheet') setSheetStatus('Gagal mengambil data, dicoba lagi');
       else {
         showLiveProblem(e);
-        if (announce && e.why === 'private') openLiveHelp();
-        else if (announce) toast(explain(e), 'Live', 'neutral');
+        if (announce) toast(explain(e), 'Live', 'neutral');
       }
     } finally { sheetBusy = false; liveBtn.removeAttribute('aria-busy'); }
   }
@@ -2112,7 +2493,12 @@ tr.new { animation: flash 1.1s ease-out; }
   for (const b of document.querySelectorAll('#source button')) {
     b.addEventListener('click', () => {
       if (b.dataset.src === 'sheet') { if (mode !== 'sheet') trySheet(true); }
-      else if (mode !== 'sim') { const q = live; setMode('sim'); newDay({ prev: q ? q.prev : cfg.prev, date: tradingDay(wibNow()), warm: true }); }
+      else if (mode !== 'sim') {
+        // Simulasi hari ini memakai harga acuan asli kalau ada: acuan hari ini, atau penutupan terakhir.
+        const q = live, prev = q ? (q.date === isoOf(wibNow()) ? q.prev : q.price) : cfg.prev;
+        setMode('sim');
+        newDay({ prev, date: tradingDay(wibNow()), warm: true });
+      }
     });
   }
   const scenarioSel = $('scenario');
@@ -2140,9 +2526,8 @@ tr.new { animation: flash 1.1s ease-out; }
   $('restart').addEventListener('click', () => newDay({ prev: market ? market.prev : cfg.prev, date: day, warm: false }));
 
   const openSheet = (id) => { const s = $(id); s.hidden = false; const f = s.querySelector('input, button'); if (f) f.focus(); };
-  const closeSheets = () => { $('help').hidden = true; $('setup').hidden = true; $('live-help').hidden = true; };
+  const closeSheets = () => { $('help').hidden = true; $('setup').hidden = true; };
   $('help-btn').addEventListener('click', () => openSheet('help'));
-  $('live-help-retry').addEventListener('click', () => { closeSheets(); trySheet(true); });
   $('help-btn-live').addEventListener('click', () => openSheet('help'));
   for (const s of document.querySelectorAll('.sheet')) {
     s.addEventListener('click', (e) => { if (e.target === s || e.target.hasAttribute('data-close')) closeSheets(); });
@@ -2169,7 +2554,10 @@ tr.new { animation: flash 1.1s ease-out; }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closeSheets(); return; }
     if (e.target.closest('input, select, textarea, button, [contenteditable]')) return;
-    if (e.key === ' ' && mode === 'sim' && $('help').hidden && $('setup').hidden && $('live-help').hidden) { e.preventDefault(); paused = !paused; syncPlay(); }
+    if (e.key !== ' ' || !$('help').hidden || !$('setup').hidden) return;
+    // Spasi: jeda simulasi, atau jeda/putar rekaman.
+    if (mode === 'sim') { e.preventDefault(); paused = !paused; syncPlay(); }
+    else if (mode === 'hist' && !building) { e.preventDefault(); togglePlay(); }
   });
 
   // ================================================================= TEMA, UKURAN, FONT
@@ -2211,32 +2599,38 @@ tr.new { animation: flash 1.1s ease-out; }
     const dt = Math.min(0.1, (now - prevT) / 1000);
     prevT = now;
     if (market) {
-      // Simulasi menunggu selama kamu melihat masa lalu; data live tetap berjalan.
-      if (mode === 'sim' && !paused && !view.fm && $('setup').hidden) advanceSim(dt);
-      if (mode === 'sheet') advanceSheet();
-      if (mode === 'live' && !feedClock && market.phase !== 'CLOSED') {
-        const w = wibNow(), c = w.getUTCHours() * 3600 + w.getUTCMinutes() * 60 + w.getUTCSeconds();
-        if (c > market.clock) market.clock = c;
+      // Simulasi menunggu selama kamu melihat masa lalu atau selama satu hari sedang disusun; data live tetap berjalan.
+      if (!building) {
+        if (mode === 'sim' && !paused && !view.fm && $('setup').hidden) advanceSim(dt);
+        if (mode === 'sheet') advanceSheet();
+        if (mode === 'live' && !feedClock && market.phase !== 'CLOSED') {
+          const w = wibNow(), c = w.getUTCHours() * 3600 + w.getUTCMinutes() * 60 + w.getUTCSeconds();
+          if (c > market.clock) market.clock = c;
+        }
       }
       const { trades, events } = market.drain();
       if (mode === 'live') tape.record(market);
       tape.addTrades(trades);
+      tape.addEvents(events);
+      // Yang terjadi di ujung rekaman hanya ditampilkan kalau kamu sedang melihat waktu terkini.
       if (!view.fm) {
         if (trades.length) { rtBuf.push(...trades); if (rtBuf.length > 200) rtBuf = rtBuf.slice(-200); }
         if (field) { field.onTrades(trades); field.onEvents(events); }
+        handleEvents(events, false);
       }
-      handleEvents(events, false);
-      advanceReplay(dt);
+      if (!building) advanceReplay(dt);
       let want = null;
-      if (cur().phase === 'BREAK' && mode !== 'live') want = 'break';
+      if (building) want = 'build';
+      else if (cur().phase === 'BREAK' && mode !== 'live') want = 'break';
       else if (mode === 'sim' && !view.fm && market.phase === 'CLOSED' && market.close != null) want = 'recap';
+      else if (mode === 'hist' && !view.fm && hist && hist.D.complete && !veilDismissed) want = 'histEnd';
       else if (mode === 'sheet' && !sheetOpen && !veilDismissed) want = 'sheetClosed';
       if (want !== veilKind) { veilKind = want; showVeil(want); }
       if (want === 'break') {
         const b = market.plan.find((x) => x.phase === 'BREAK'), mtr = $('break-meter');
         if (mtr) mtr.style.width = (100 * clamp((cur().clock - b.from) / (b.to - b.from), 0, 1)).toFixed(1) + '%';
       }
-      if (now - lastUi > 120) { lastUi = now; renderHeader(); renderBook(); if (!view.fm) renderTape(); renderStats(); syncTimebar(); }
+      if (now - lastUi > 120) { lastUi = now; renderHeader(); renderBook(); if (!view.fm) renderTape(); renderStats(); syncTimebar(); setStamp(); }
       if (now - lastSpark > 700) { lastSpark = now; drawSpark(); }
     }
     if (field) field.frame(dt, now / 1000);
@@ -2244,16 +2638,22 @@ tr.new { animation: flash 1.1s ease-out; }
   }
 
   // Pegangan untuk konsol pengembang: palagan.market, palagan.sim.
-  window.palagan = { get market() { return market; }, get sim() { return sim; }, get field() { return field; }, get live() { return live; }, poll: () => trySheet(true), tape, view, seek };
+  window.palagan = {
+    get market() { return market; }, get sim() { return sim; }, get field() { return field; }, get live() { return live; },
+    get mode() { return mode; }, get building() { return !!building; }, poll: () => trySheet(true), tape, view, seek, rec, openDate, gotoSession,
+  };
 
-  const feedUrl = new URLSearchParams(location.search).get('feed');
-  if (feedUrl) { $('source').hidden = true; startLive(feedUrl); }
+  const params = new URLSearchParams(location.search), feedUrl = params.get('feed');
+  if (feedUrl) { $('source').hidden = true; $('tb-date').hidden = true; startLive(feedUrl); }
   else {
-    // Tampil langsung dengan simulasi, lalu pindah ke data asli begitu sheet terbaca.
-    const wantLive = store.get('source', 'sheet') === 'sheet';
+    // Tampil langsung dengan simulasi, lalu pindah ke data asli begitu terbaca. ?tanggal=YYYY-MM-DD&sesi=S1 membuka rekaman.
+    const wantLive = store.get('source', 'sheet') === 'sheet', wantDate = params.get('tanggal') || '';
     setMode('sim', false);
     newDay({ prev: cfg.prev, date: day, warm: true });
-    trySheet(false, wantLive);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(wantDate)) {
+      refreshDates(false).catch(() => {}).then(() => { if (mode === 'hist' && hist) fillDates(); });
+      openDate(wantDate, (params.get('sesi') || '').toUpperCase());
+    } else trySheet(false, wantLive);
     setInterval(() => { if (mode === 'sheet') trySheet(false); }, POLL_MS);
   }
   requestAnimationFrame(loop);

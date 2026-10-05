@@ -176,6 +176,8 @@
       this.bandTick = tickSize(this.prev); this.bandT = -1e9;
       this.live = [];
       this.seq = 1;
+      // Harga lelang yang diinginkan (misalnya open/close asli saat memutar rekaman); dipakai kalau sah sebagai IEP.
+      this.iepHint = null;
     }
 
     event(kind, data) { this.events.push(Object.assign({ t: this.clock, kind }, data)); }
@@ -281,6 +283,7 @@
     }
 
     // Harga keseimbangan call auction: volume terbanyak, lalu selisih terkecil, lalu terdekat ke harga acuan.
+    // iepHint menang kalau di harga itu ada order yang bertemu.
     computeIEP() {
       const B = this.bids.levels, O = this.offers.levels;
       if (!B.length || !O.length || B[0].p < O[0].p) return { p: null, v: 0 };
@@ -293,17 +296,19 @@
         let bc = 0; for (const L of B) { if (L.p >= p) bc += L.lot; else break; }
         let oc = 0; for (const L of O) { if (L.p <= p) oc += L.lot; else break; }
         const v = Math.min(bc, oc), imb = Math.abs(bc - oc), d = Math.abs(p - ref);
+        if (p === this.iepHint && v > 0) return { p, v };
         if (!best || v > best.v || (v === best.v && (imb < best.imb || (imb === best.imb && d < best.d)))) best = { p, v, imb, d };
       }
       return best && best.v > 0 ? { p: best.p, v: best.v } : { p: null, v: 0 };
     }
 
+    // Hanya bid di IEP ke atas dan offer di IEP ke bawah yang tereksekusi, semuanya di harga IEP.
     runAuction() {
       const { p } = this.computeIEP();
       if (p === null) return null;
       const B = this.bids, O = this.offers;
       const rec = { t: this.clock, price: p, lot: 0, side: 'A', bF: 0, sF: 0 };
-      while (B.levels.length && O.levels.length && B.levels[0].p >= O.levels[0].p) {
+      while (B.levels.length && O.levels.length && B.levels[0].p >= p && O.levels[0].p <= p) {
         const LB = B.levels[0], LO = O.levels[0], b = LB.q[0], s = LO.q[0];
         const q = Math.min(b.lot, s.lot);
         b.lot -= q; s.lot -= q; LB.lot -= q; LO.lot -= q; LB.traded += q; LO.traded += q;
@@ -495,8 +500,9 @@
       this.anchorNoise = 0;
     }
     setScenario(key) { this.key = SCENARIOS[key] ? key : 'normal'; this.sc = SCENARIOS[this.key]; }
-    // Mode jangkar: harga wajar ditambatkan ke harga asli (misalnya dari Google Finance) dan
-    // laju transaksi mengikuti volume asli. a = { price, rate (transaksi/detik), median (lot) } atau null.
+    // Mode jangkar: harga wajar ditambatkan ke harga asli dan laju transaksi mengikuti volume asli.
+    // a = { price, rate (transaksi/detik), median (lot) } atau null; idx (indeks tangga harga, boleh pecahan)
+    // dipakai bila ada, untuk jalur yang diinterpolasi; auction = harga lelang asli (open atau close).
     setAnchor(a) { this.anchor = a; }
     // Ukuran order acuan: di mode jangkar mengikuti ukuran transaksi asli, selain itu ukuran order eceran.
     lotUnit() { return this.anchor ? Math.max(1, this.anchor.median / 1.3) : this.m.baseLot; }
@@ -518,6 +524,7 @@
 
     step(dt) {
       const m = this.m;
+      m.iepHint = this.anchor && this.anchor.auction != null ? this.anchor.auction : null;
       const ph = m.advanceTo(m.clock + dt);
       if (ph === 'CLOSED' || ph === 'BREAK') return ph;
       this.evolveFair(dt);
@@ -537,7 +544,8 @@
       if (this.anchor) {
         // Derau Ornstein-Uhlenbeck di sekitar harga asli: simpangan baku sekitar 0,6 fraksi.
         this.anchorNoise += (-this.anchorNoise / 60) * dt + 0.11 * Math.sqrt(dt) * gauss(r);
-        const p = indexToPriceCont(priceIndex(this.anchor.price) + this.anchorNoise);
+        const base = this.anchor.idx != null ? this.anchor.idx : priceIndex(this.anchor.price);
+        const p = indexToPriceCont(base + this.anchorNoise);
         this.fair = clamp(Math.log(p), Math.log(m.limits.arb) - 0.01, Math.log(m.limits.ara) + 0.01);
         return;
       }
@@ -656,9 +664,91 @@
     }
   }
 
+  // ------------------------------------------------------------ rekaman candle
+  // Satu hari rekaman (format branch data-srsn): { code, date, prev, step, src, day: [o,h,l,c,v], bars: [["09:00",o,h,l,c,v], ...] }.
+  // Tiap candle diketahui saat selesai (known); candle 16:00 ke atas adalah lelang penutupan dan post-trading,
+  // dianggap diketahui pukul 16:00. Ringkasan kumulatif membuat realAt cepat.
+  const lastAtOrBefore = (arr, t, key) => {
+    let lo = 0, hi = arr.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (key(arr[mid]) <= t) lo = mid + 1; else hi = mid; }
+    return lo - 1;
+  };
+  function parseDay(j) {
+    const step = j && j.step === 300 ? 300 : 60;
+    const bars = (j && Array.isArray(j.bars) ? j.bars : []).map((b) => {
+      const t = Array.isArray(b) ? parseClock(b[0]) : null;
+      const [o, h, l, c, v] = Array.isArray(b) ? b.slice(1, 6).map(Number) : [];
+      return t != null && o > 0 && c > 0 && h > 0 && l > 0 ? { t, o, h: Math.max(h, o, c), l: Math.min(l, o, c), c, v: v > 0 ? v : 0 } : null;
+    }).filter(Boolean).sort((a, b) => a.t - b.t);
+    const prev = Math.round(+(j && j.prev));
+    if (!bars.length || !(prev > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(j.date)) throw Object.assign(new Error('Rekaman tidak terbaca'), { why: 'bad' });
+    const dy = Array.isArray(j.day) && j.day.length >= 5 && j.day.slice(0, 4).every((x) => +x > 0) ? j.day.slice(0, 5).map((x) => Math.max(0, +x || 0)) : null;
+    const open = dy ? dy[0] : bars[0].o;
+    const D = {
+      code: String(j.code || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4), date: j.date, prev, step,
+      // Nama sumber ikut tampil di halaman: batasi ke huruf, angka, dan tanda baca sederhana.
+      src: String(j.src || '').replace(/[^\w .()-]/g, '').slice(0, 40) || 'Yahoo Finance',
+      open, bars, day: dy && { o: dy[0], h: dy[1], l: dy[2], c: dy[3], v: dy[4] }, known: [], cumV: [], hi: [], lo: [],
+    };
+    let v = 0, hi = open, lo = open;
+    for (const b of bars) {
+      D.known.push(Math.min(b.t >= H(16) ? b.t : b.t + step, H(16)));
+      v += b.v; hi = Math.max(hi, b.h); lo = Math.min(lo, b.l);
+      D.cumV.push(v); D.hi.push(hi); D.lo.push(lo);
+    }
+    D.complete = bars[bars.length - 1].t >= H(16);
+    D.close = D.complete ? (D.day ? D.day.c : bars[bars.length - 1].c) : null;
+    D.lastKnown = D.known[D.known.length - 1];
+    D.points = [[H(9), open]];
+    bars.forEach((b, i) => {
+      const last = D.points[D.points.length - 1];
+      if (D.known[i] === last[0]) last[1] = b.c; else D.points.push([D.known[i], b.c]);
+    });
+    return D;
+  }
+  // Harga asli pada jam t dari candle yang sudah selesai. Sebelum 09:00 belum ada transaksi asli;
+  // setelah penutupan dipakai ringkasan harian (volume candle sedikit lebih kecil dari volume harian).
+  function realAt(D, t) {
+    if (t < H(9)) return null;
+    const q = { code: D.code, date: D.date, prev: D.prev, open: D.open, src: D.src, step: D.step };
+    const i = lastAtOrBefore(D.known, t, (x) => x), n = D.bars.length - 1;
+    if (D.complete && D.day && t >= H(16)) return Object.assign(q, { price: D.day.c, high: D.day.h, low: D.day.l, vol: Math.max(D.day.v, D.cumV[n]), clock: H(16) });
+    if (i < 0) return Object.assign(q, { price: D.open, high: D.open, low: D.open, vol: 0, clock: H(9) });
+    return Object.assign(q, { price: D.bars[i].c, high: D.hi[i], low: D.lo[i], vol: D.cumV[i], clock: D.known[i] });
+  }
+  // Jalur tambatan untuk Simulator.setAnchor: open pukul 09:00, lalu tiap candle open → low/high → close
+  // (urutan mengikuti arah candle), diinterpolasi di indeks fraksi. Laju dan ukuran transaksi dari volume
+  // candle, dihaluskan lima candle. Lelang pembukaan dan penutupan diarahkan ke open dan close asli.
+  function anchorPath(D) {
+    const W = [], at = (t, p) => W.push([t, priceIndex(p)]), cont = D.bars.filter((b) => b.t < H(16));
+    at(H(8, 45), D.open); at(H(9), D.open);
+    for (const b of cont) {
+      const up = b.c >= b.o, d = D.step;
+      at(b.t + 0.1 * d, b.o); at(b.t + 0.4 * d, up ? b.l : b.h); at(b.t + 0.7 * d, up ? b.h : b.l); at(b.t + d - 0.5, b.c);
+    }
+    if (D.complete) { at(H(15, 50), D.close); at(H(16, 1), D.close); }
+    W.sort((a, b) => a[0] - b[0]);
+    const lps = cont.map((b, i) => {
+      const w = cont.slice(Math.max(0, i - 2), i + 3);
+      return w.reduce((s, x) => s + x.v, 0) / LOT / (w.length * D.step);
+    });
+    const busy = lps.filter((x) => x > 0).slice(0, 10), early = busy.length ? busy.reduce((s, x) => s + x, 0) / busy.length : 0;
+    return (t) => {
+      const k = lastAtOrBefore(W, t, (w) => w[0]);
+      let idx;
+      if (k < 0) idx = W[0][1];
+      else if (k >= W.length - 1) idx = W[W.length - 1][1];
+      else { const [ta, ia] = W[k], [tb, ib] = W[k + 1]; idx = ia + (ib - ia) * clamp((t - ta) / (tb - ta || 1), 0, 1); }
+      const j = lastAtOrBefore(cont, t, (b) => b.t), flow = t < H(9) || j < 0 ? early : lps[j];
+      const price = priceAt(Math.round(idx)), rate = clamp(flow / (0.45 * baseLotFor(price)), 0.08, 2.5);
+      const auction = t < H(9) ? D.open : D.complete && t >= H(15, 50) ? D.close : null;
+      return { price, idx, rate, median: Math.max(1, flow / rate / 1.65), auction };
+    };
+  }
+
   return {
     LOT, MIN_PRICE, BANDS, tickSize, isValidPrice, floorTick, ceilTick, priceIndex, priceAt, stepPrice, indexToPriceCont,
     arLimits, sessionPlan, phaseAt, PHASE_LABEL, isContinuous, isAuction, parseClock, baseLotFor, H,
-    Market, Simulator, SCENARIOS, mulberry32,
+    Market, Simulator, SCENARIOS, mulberry32, parseDay, realAt, anchorPath,
   };
 });
