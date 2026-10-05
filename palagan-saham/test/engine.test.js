@@ -151,3 +151,20 @@ for (const key of Object.keys(P.SCENARIOS)) {
     assert.ok(m.volume > 0 && m.freq > 0);
   });
 }
+
+test('mode jangkar: harga simulasi menempel ke harga asli dan ikut berpindah', () => {
+  const m = new P.Market({ code: 'SRSN', prev: 132, date: '2026-10-05', dow: 1, clock: P.H(10) });
+  const sim = new P.Simulator(m, { seed: 11 });
+  sim.setAnchor({ price: 143, rate: 0.5, median: 300 });
+  let far = 0, n = 0;
+  while (m.clock < P.H(11)) {
+    sim.step(0.5);
+    m.drain();
+    if (m.clock > P.H(10, 10) && m.last !== null) { n++; if (Math.abs(P.priceIndex(m.last) - P.priceIndex(143)) > 3) far++; }
+  }
+  assert.ok(n > 1000 && far / n < 0.05, `harga menjauh dari jangkar ${far}/${n}`);
+  sim.setAnchor({ price: 138, rate: 0.5, median: 300 });
+  sim.runUntil(P.H(11, 10));
+  assert.ok(Math.abs(P.priceIndex(m.last) - P.priceIndex(138)) <= 3, `tidak ikut pindah: ${m.last}`);
+  assert.ok(P.indexToPriceCont(P.priceIndex(4990) + 0.5) === 4995);
+});

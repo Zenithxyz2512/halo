@@ -53,6 +53,12 @@
     return MIN_PRICE;
   }
   const stepPrice = (p, n) => priceAt(priceIndex(p) + n);
+  // Kebalikan priceIndex untuk indeks pecahan (harga di antara dua fraksi), dipakai untuk harga wajar.
+  function indexToPriceCont(i) {
+    i = Math.max(0, i);
+    for (let k = BANDS.length - 1; k >= 0; k--) { const b = BANDS[k]; if (i >= b.i0) return b.lo + (i - b.i0) * b.tick; }
+    return MIN_PRICE;
+  }
 
   function arLimits(ref, date) {
     if (ref <= 10) return { ara: ref + 1, arb: Math.max(MIN_PRICE, ref - 1), araPct: null, arbPct: null };
@@ -485,8 +491,15 @@
       this.bandar = [];
       this.histT = -1e9;
       this.steps = 0;
+      this.anchor = null;
+      this.anchorNoise = 0;
     }
     setScenario(key) { this.key = SCENARIOS[key] ? key : 'normal'; this.sc = SCENARIOS[this.key]; }
+    // Mode jangkar: harga wajar ditambatkan ke harga asli (misalnya dari Google Finance) dan
+    // laju transaksi mengikuti volume asli. a = { price, rate (transaksi/detik), median (lot) } atau null.
+    setAnchor(a) { this.anchor = a; }
+    // Ukuran order acuan: di mode jangkar mengikuti ukuran transaksi asli, selain itu ukuran order eceran.
+    lotUnit() { return this.anchor ? Math.max(1, this.anchor.median / 1.3) : this.m.baseLot; }
 
     fairIdx() { const x = Math.exp(this.fair), b = bandOf(x); return b.i0 + (x - b.lo) / b.tick; }
     midIdx() {
@@ -521,6 +534,13 @@
 
     evolveFair(dt) {
       const sc = this.sc, m = this.m, r = this.rng;
+      if (this.anchor) {
+        // Derau Ornstein-Uhlenbeck di sekitar harga asli: simpangan baku sekitar 0,6 fraksi.
+        this.anchorNoise += (-this.anchorNoise / 60) * dt + 0.11 * Math.sqrt(dt) * gauss(r);
+        const p = indexToPriceCont(priceIndex(this.anchor.price) + this.anchorNoise);
+        this.fair = clamp(Math.log(p), Math.log(m.limits.arb) - 0.01, Math.log(m.limits.ara) + 0.01);
+        return;
+      }
       const sig = sc.vol / 100 / Math.sqrt(19800);
       let x = this.fair + (sc.drift / 100 / 3600) * dt + sig * Math.sqrt(dt) * gauss(r);
       if (sc.revert) x -= sc.revert * (x - Math.log(m.prev)) * dt;
@@ -532,14 +552,17 @@
       const m = this.m, r = this.rng, sc = this.sc, act = this.activity();
       const gapT = this.fairIdx() - this.midIdx();
       const bias = Math.tanh(gapT / 1.3);
-      const nT = poisson(r, BASE.taker * sc.taker * act * (1 + 0.5 * Math.abs(bias)) * dt);
+      const A = this.anchor;
+      const nT = poisson(r, (A ? A.rate : BASE.taker * sc.taker * act * (1 + 0.5 * Math.abs(bias))) * dt);
       for (let i = 0; i < nT; i++) {
         const buy = r() < 0.5 + 0.46 * bias;
         const sweep = Math.abs(gapT) > 2 && r() < 0.35 ? 1 + geometric(r, 0.45) : r() < 0.06 ? 1 : 0;
-        this.take(buy ? 'B' : 'S', lognormal(r, m.baseLot * 1.3, 1) * (1 + Math.abs(bias)), sweep, 'taker');
+        const size = A ? lognormal(r, A.median, 1) : lognormal(r, m.baseLot * 1.3, 1) * (1 + Math.abs(bias));
+        this.take(buy ? 'B' : 'S', size, sweep, 'taker');
       }
+      if (A) this.dropStale(dt);
       for (const side of ['B', 'S']) {
-        const fill = this.m.side(side).depth(20) / (BASE.depth * sc.depth * m.baseLot);
+        const fill = this.m.side(side).depth(20) / (BASE.depth * sc.depth * this.lotUnit());
         const n = poisson(r, BASE.lp * act * clamp(1.5 - fill, 0.08, 2.2) * dt);
         for (let i = 0; i < n; i++) this.provide(side, bias);
       }
@@ -551,13 +574,24 @@
       });
     }
 
+    // Mode jangkar: pembuat pasar membatalkan kuotasi basi di sisi yang salah dari harga wajar.
+    dropStale(dt) {
+      const m = this.m, r = this.rng, fi = this.fairIdx(), pr = 1 - Math.exp(-dt / 15);
+      for (const [S, stale] of [[m.offers, (p) => priceIndex(p) < fi - 1.5], [m.bids, (p) => priceIndex(p) > fi + 1.5]]) {
+        for (const L of S.levels.slice()) {
+          if (!stale(L.p)) break;
+          for (const o of L.q.slice()) if (r() < pr) m.cancel(o);
+        }
+      }
+    }
+
     take(side, lotRaw, extra, tag) {
       const m = this.m;
       const opp = side === 'B' ? m.offers.best() : m.bids.best();
       let p;
       if (opp === null) {
         const own = side === 'B' ? m.bids.best() : m.offers.best();
-        p = own !== null ? own : m.last !== null ? m.last : m.prev;
+        p = own !== null ? own : this.anchor ? priceAt(Math.round(this.fairIdx())) : m.last !== null ? m.last : m.prev;
       } else p = extra ? stepPrice(opp, side === 'B' ? extra : -extra) : opp;
       return m.submit(side, this.clampP(p), Math.max(1, Math.round(lotRaw)), this.isForeign(side), tag);
     }
@@ -569,14 +603,17 @@
       const dir = side === 'B' ? -1 : 1;
       const lean = side === 'B' ? bias : -bias;
       let p;
-      if (own !== null && opp !== null && priceIndex(opp) - priceIndex(own) > 1 && r() < 0.3 + 0.3 * lean) p = stepPrice(own, -dir);
+      if (this.anchor) {
+        const fi = this.fairIdx();
+        p = priceAt((side === 'B' ? Math.floor(fi - 0.3) : Math.ceil(fi + 0.3)) + dir * geometric(r, BASE.q));
+      } else if (own !== null && opp !== null && priceIndex(opp) - priceIndex(own) > 1 && r() < 0.3 + 0.3 * lean) p = stepPrice(own, -dir);
       else {
         const anchor = own !== null ? own : opp !== null ? stepPrice(opp, dir) : priceAt(Math.round(this.fairIdx()));
         p = stepPrice(anchor, dir * geometric(r, clamp(BASE.q - 0.1 * lean, 0.4, 0.85)));
       }
       if (opp !== null && (side === 'B' ? p >= opp : p <= opp)) p = stepPrice(opp, dir);
       if (p > m.limits.ara || p < m.limits.arb) return null;
-      return m.submit(side, p, Math.max(1, Math.round(lognormal(r, m.baseLot * 2, 1.05))), this.isForeign(side), 'lp');
+      return m.submit(side, p, Math.max(1, Math.round(lognormal(r, this.lotUnit() * 2, 1.05))), this.isForeign(side), 'lp');
     }
 
     bandarMove(bias) {
@@ -588,9 +625,10 @@
         const opp = side === 'B' ? m.offers.best() : m.bids.best();
         const anchor = own !== null ? own : opp !== null ? stepPrice(opp, dir) : m.last || m.prev;
         const p = this.clampP(stepPrice(anchor, dir * (r() < 0.4 ? 0 : 1 + Math.floor(r() * 3))));
-        const o = m.submit(side, p, Math.round(m.baseLot * (60 + 160 * r())), r() < 0.5, 'bandar');
+        const o = m.submit(side, p, Math.round(this.lotUnit() * (60 + 160 * r())), r() < 0.5, 'bandar');
         if (o && !o.dead) this.bandar.push({ o, until: m.clock + 120 + 780 * r() });
-      } else {
+      } else if (!this.anchor) {
+        // Sapuan besar hanya di simulasi murni; di mode jangkar harga harus tetap mengikuti data asli.
         if (sc.wallSide === 0) side = bias > 0.15 ? 'B' : bias < -0.15 ? 'S' : r() < 0.5 ? 'B' : 'S';
         this.take(side, m.baseLot * (35 + 120 * r()), 1 + Math.floor(r() * 3), 'bandar');
       }
@@ -604,7 +642,7 @@
         const side = r() < 0.5 + lean ? 'B' : 'S';
         const off = Math.round(gauss(r) * 2.2 + (side === 'B' ? -0.7 : 0.7));
         const p = this.clampP(priceAt(Math.round(fi + off)));
-        m.submit(side, p, Math.max(1, Math.round(lognormal(r, m.baseLot * 1.6, 1.05))), this.isForeign(side), 'auction');
+        m.submit(side, p, Math.max(1, Math.round(lognormal(r, this.lotUnit() * 1.6, 1.05))), this.isForeign(side), 'auction');
       }
     }
 
@@ -619,7 +657,7 @@
   }
 
   return {
-    LOT, MIN_PRICE, BANDS, tickSize, isValidPrice, floorTick, ceilTick, priceIndex, priceAt, stepPrice,
+    LOT, MIN_PRICE, BANDS, tickSize, isValidPrice, floorTick, ceilTick, priceIndex, priceAt, stepPrice, indexToPriceCont,
     arLimits, sessionPlan, phaseAt, PHASE_LABEL, isContinuous, isAuction, parseClock, baseLotFor, H,
     Market, Simulator, SCENARIOS, mulberry32,
   };
