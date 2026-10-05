@@ -123,6 +123,10 @@ button, input, select { font: inherit; color: inherit; }
 .select { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 select { height: 34px; border-radius: var(--r); border: 1px solid var(--rule); background: var(--surface); padding: 0 8px; font-weight: 700; font-size: 12.5px; text-transform: none; letter-spacing: 0; }
 .feed-status { font-size: 12px; font-weight: 600; color: var(--muted); }
+.live-note { font-size: 12px; font-weight: 600; color: var(--muted); max-width: 260px; line-height: 1.3; }
+.live-note.warn { color: var(--ink); }
+.live-note button, .live-note a { font: inherit; font-weight: 700; color: var(--brass); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+#source button[aria-busy="true"] { opacity: .6; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---- medan ---- */
@@ -267,7 +271,7 @@ tr.new { animation: flash 1.1s ease-out; }
 .sheet { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
 .sheet .card { max-height: calc(100% - 32px); overflow: auto; max-width: 560px; }
 .sheet h2 { font-size: 24px; }
-.sheet ul { margin: 10px 0; padding-left: 18px; }
+.sheet ul, .sheet ol { margin: 10px 0; padding-left: 20px; }
 .sheet li { margin: 6px 0; }
 .sheet label { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: 12px; font-weight: 700; color: var(--muted); }
 .sheet input { height: 38px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--bg); padding: 0 10px; font-size: 15px; font-weight: 700; color: var(--ink); }
@@ -346,7 +350,7 @@ tr.new { animation: flash 1.1s ease-out; }
         <button type="button" data-src="sheet" title="Harga asli dari Google Finance, tertunda sekitar 10 menit">Live</button>
         <button type="button" data-src="sim" title="Simulasi penuh dengan aturan BEI">Simulasi</button>
       </div>
-      <span class="feed-status" id="sheet-status" hidden></span>
+      <span class="live-note" id="sheet-status" role="status" hidden></span>
       <label class="select sim-only" for="scenario"><span class="sr">Skenario</span>
         <select id="scenario" title="Skenario simulasi"></select>
       </label>
@@ -459,6 +463,22 @@ tr.new { animation: flash 1.1s ease-out; }
     <p class="fine">Mode <b>Simulasi</b>: kode saham cuma label, harganya dibangkitkan dari harga acuan yang kamu isi. Mode <b>Live</b> hanya jalan di versi web (GitHub Pages), bukan di pratinjau claude.ai. Yang asli adalah aturannya: lot 100 lembar, fraksi harga, ARA/ARB periode 28 Sep–31 Des 2026 (ARB 15%; mulai 2027 ARB sama dengan ARA), dan jadwal sesi BEI. Untuk data live perlu feed order book berlisensi; caranya ada di README proyek. Bukan rekomendasi jual-beli.</p>
     <p class="fine">Terinspirasi <a href="https://newhedge.io/bitcoin/battlefield" target="_blank" rel="noopener">Bitcoin Battlefield</a> dari Newhedge. Pintasan: <span class="kbd">Spasi</span> jeda, <span class="kbd">←</span><span class="kbd">→</span> putar, <span class="kbd">+</span><span class="kbd">−</span> zoom.</p>
     <div class="row"><button class="btn primary" type="button" data-close>Mengerti</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="live-help" hidden role="dialog" aria-modal="true" aria-labelledby="live-help-h">
+  <div class="card">
+    <span class="eyebrow">Mode Live</span>
+    <h2 id="live-help-h">Nyalakan harga asli</h2>
+    <p id="live-help-why"></p>
+    <ol id="live-help-steps">
+      <li>Buka sheet <a id="live-help-sheet" target="_blank" rel="noopener">Harga SRSN untuk Palagan Saham</a> di Google Sheets.</li>
+      <li>Klik <b>Bagikan</b> di kanan atas.</li>
+      <li>Di bagian <b>Akses umum</b>, ubah <b>Dibatasi</b> menjadi <b>Siapa saja yang memiliki link</b>, peran <b>Pelihat</b>, lalu <b>Selesai</b>.</li>
+      <li>Kembali ke halaman ini dan tekan <b>Live</b>.</li>
+    </ol>
+    <p class="fine">Sheet itu hanya berisi rumus GOOGLEFINANCE untuk harga saham. Membagikannya sebagai Pelihat tidak membuka file lain di Drive.</p>
+    <div class="row"><button class="btn primary" type="button" id="live-help-retry">Coba lagi</button><button class="btn" type="button" data-close>Tutup</button></div>
   </div>
 </div>
 
@@ -1597,7 +1617,8 @@ tr.new { animation: flash 1.1s ease-out; }
   const SHEET_ID = (new URLSearchParams(location.search).get('sheet') || '13HzYceK4HQpsFVIlyWvMLnrOhvCgMJFdcG0lINceCwE').replace(/[^\w-]/g, '');
   const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=0&headers=1`;
   const POLL_MS = 120000;
-  let live = null, liveQuotes = null, sheetOpen = false, snaps = [], sheetBusy = false;
+  let live = null, liveQuotes = null, sheetOpen = false, snaps = [], sheetBusy = false, liveProblem = null;
+  const WEB_URL = 'https://zenithxyz2512.github.io/halo/palagan-saham/';
 
   const wibClock = () => { const w = wibNow(); return w.getUTCHours() * 3600 + w.getUTCMinutes() * 60 + w.getUTCSeconds(); };
   function parseCsv(text) {
@@ -1691,13 +1712,41 @@ tr.new { animation: flash 1.1s ease-out; }
     setStamp();
     setText($('book-sub'), next === 'sheet' ? 'simulasi di sekitar harga asli' : '10 level · lot');
     setText($('rt-sub'), next === 'sheet' ? 'simulasi · F asing, D lokal' : 'B·S: F asing, D lokal');
-    $('sheet-status').hidden = next !== 'sheet';
+    if (next === 'sheet') $('sheet-status').hidden = false;
+    else if (!liveProblem) $('sheet-status').hidden = true;
     if (field) { field.flagPrice = next === 'sheet' ? () => (live ? live.price : null) : null; field.flagRef = next === 'sheet' ? () => (live ? live.prev : null) : null; }
   }
   function setStamp() {
     $('stamp').textContent = mode === 'sheet' ? (live ? `TERTUNDA ${live.delay || 10} MNT` : 'LIVE') : mode === 'live' ? 'FEED' : 'SIMULASI';
   }
-  function setSheetStatus(text) { setText($('sheet-status'), text); }
+  function setSheetStatus(text) { const el = $('sheet-status'); el.className = 'live-note'; el.hidden = false; el.textContent = text; }
+  // Alasan Live belum bisa, ditampilkan tepat di samping tombolnya.
+  function showLiveProblem(e) {
+    liveProblem = e ? e.why : null;
+    const el = $('sheet-status');
+    if (!e) { if (mode !== 'sheet') el.hidden = true; return; }
+    el.hidden = false;
+    el.className = 'live-note warn';
+    el.textContent = '';
+    if (e.why === 'blocked') {
+      el.append('Live hanya jalan di ');
+      const a = document.createElement('a'); a.href = WEB_URL; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'versi web';
+      el.append(a);
+    } else {
+      el.append(e.why === 'private' ? 'Live belum aktif: sheet belum dibagikan. ' : 'Live gagal: ' + explain(e) + ' ');
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = e.why === 'private' ? 'Caranya' : 'Coba lagi';
+      b.addEventListener('click', () => (e.why === 'private' ? openLiveHelp() : trySheet(true)));
+      el.append(b);
+    }
+  }
+  function openLiveHelp() {
+    $('live-help-sheet').href = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+    setText($('live-help-why'), liveProblem === 'private'
+      ? 'Halaman ini membaca harga dari Google Sheets, tapi sheet-nya masih privat sehingga Google menolak permintaannya.'
+      : 'Halaman ini membaca harga dari Google Sheets milikmu. Pastikan sheet-nya bisa dilihat siapa saja yang memiliki link.');
+    $('live-help').hidden = false;
+    $('live-help-retry').focus();
+  }
 
   function startSheet(quotes) {
     const q = pickQuote(quotes);
@@ -1740,13 +1789,20 @@ tr.new { animation: flash 1.1s ease-out; }
     while (market.clock < now && n++ < 240) sim.step(Math.min(0.5, now - market.clock));
     if (market.phase === 'CLOSED') sheetOpen = false;
   }
-  async function trySheet(announce) {
+  async function trySheet(announce, autoSwitch = true) {
     if (sheetBusy) return;
     sheetBusy = true;
+    const liveBtn = document.querySelector('#source button[data-src="sheet"]');
+    if (announce) { liveBtn.setAttribute('aria-busy', 'true'); setSheetStatus('Menghubungkan ke Google Sheets…'); }
     try {
       const quotes = await fetchQuotes();
+      showLiveProblem(null);
       if (mode === 'live') return;
-      if (mode !== 'sheet') { startSheet(quotes); return; }
+      if (mode !== 'sheet') {
+        liveQuotes = quotes;
+        if (autoSwitch) startSheet(quotes); else $('sheet-status').hidden = true;
+        return;
+      }
       const q = pickQuote(quotes), before = live;
       liveQuotes = quotes;
       const changed = !before || q.price !== before.price || q.vol !== before.vol || q.clock !== before.clock || q.date !== before.date;
@@ -1765,9 +1821,12 @@ tr.new { animation: flash 1.1s ease-out; }
       setSheetStatus('Dicek tiap 2 menit');
     } catch (e) {
       if (mode === 'sheet') setSheetStatus('Gagal mengambil data, dicoba lagi');
-      if (announce) toast(explain(e), 'Live', 'neutral');
-      if (mode !== 'sheet') kronik(wibClock(), explain(e), 'Live', 'neutral');
-    } finally { sheetBusy = false; }
+      else {
+        showLiveProblem(e);
+        if (announce && e.why === 'private') openLiveHelp();
+        else if (announce) toast(explain(e), 'Live', 'neutral');
+      }
+    } finally { sheetBusy = false; liveBtn.removeAttribute('aria-busy'); }
   }
 
   // ================================================================= MODE FEED
@@ -1850,8 +1909,9 @@ tr.new { animation: flash 1.1s ease-out; }
   $('restart').addEventListener('click', () => newDay({ prev: market ? market.prev : cfg.prev, date: day, warm: false }));
 
   const openSheet = (id) => { const s = $(id); s.hidden = false; const f = s.querySelector('input, button'); if (f) f.focus(); };
-  const closeSheets = () => { $('help').hidden = true; $('setup').hidden = true; };
+  const closeSheets = () => { $('help').hidden = true; $('setup').hidden = true; $('live-help').hidden = true; };
   $('help-btn').addEventListener('click', () => openSheet('help'));
+  $('live-help-retry').addEventListener('click', () => { closeSheets(); trySheet(true); });
   $('help-btn-live').addEventListener('click', () => openSheet('help'));
   for (const s of document.querySelectorAll('.sheet')) {
     s.addEventListener('click', (e) => { if (e.target === s || e.target.hasAttribute('data-close')) closeSheets(); });
@@ -1878,7 +1938,7 @@ tr.new { animation: flash 1.1s ease-out; }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closeSheets(); return; }
     if (e.target.closest('input, select, textarea, button, [contenteditable]')) return;
-    if (e.key === ' ' && mode === 'sim' && $('help').hidden && $('setup').hidden) { e.preventDefault(); paused = !paused; syncPlay(); }
+    if (e.key === ' ' && mode === 'sim' && $('help').hidden && $('setup').hidden && $('live-help').hidden) { e.preventDefault(); paused = !paused; syncPlay(); }
   });
 
   // ================================================================= TEMA, UKURAN, FONT
@@ -1956,7 +2016,7 @@ tr.new { animation: flash 1.1s ease-out; }
     const wantLive = store.get('source', 'sheet') === 'sheet';
     setMode('sim', false);
     newDay({ prev: cfg.prev, date: day, warm: true });
-    if (wantLive) trySheet(false);
+    trySheet(false, wantLive);
     setInterval(() => { if (mode === 'sheet') trySheet(false); }, POLL_MS);
   }
   requestAnimationFrame(loop);
