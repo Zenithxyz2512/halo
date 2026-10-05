@@ -168,3 +168,57 @@ test('mode jangkar: harga simulasi menempel ke harga asli dan ikut berpindah', (
   assert.ok(Math.abs(P.priceIndex(m.last) - P.priceIndex(138)) <= 3, `tidak ikut pindah: ${m.last}`);
   assert.ok(P.indexToPriceCont(P.priceIndex(4990) + 0.5) === 4995);
 });
+
+// Satu hari rekaman kecil: open 100, naik ke 104, istirahat, turun ke 98, ditutup 99 lewat lelang 16:00.
+const sampleDay = () => ({
+  code: 'SRSN', date: '2026-10-05', prev: 100, step: 60, src: 'Uji',
+  day: [100, 104, 98, 99, 900000],
+  bars: [
+    ['09:00', 100, 101, 100, 101, 0], ['09:01', 101, 104, 101, 104, 300000], ['11:59', 103, 103, 102, 102, 100000],
+    ['13:30', 102, 102, 98, 98, 200000], ['15:49', 99, 99, 98, 99, 150000], ['16:00', 99, 99, 99, 99, 120000],
+  ],
+});
+
+test('rekaman candle: dibaca, diketahui saat candle selesai, ringkasan harian di penutupan', () => {
+  const D = P.parseDay(sampleDay());
+  assert.equal(D.bars.length, 6);
+  assert.deepEqual(D.known.slice(0, 2), [P.H(9, 1), P.H(9, 2)]);
+  assert.equal(D.known[5], P.H(16));
+  assert.ok(D.complete);
+  assert.equal(D.close, 99);
+  assert.equal(P.realAt(D, P.H(8, 59)), null);
+  assert.equal(P.realAt(D, P.H(9, 0, 30)).price, 100);
+  const q = P.realAt(D, P.H(9, 2));
+  assert.equal(q.price, 104); assert.equal(q.high, 104); assert.equal(q.vol, 300000);
+  const mid = P.realAt(D, P.H(14));
+  assert.equal(mid.price, 98); assert.equal(mid.low, 98); assert.equal(mid.clock, P.H(13, 31));
+  const end = P.realAt(D, P.H(16, 0, 1));
+  assert.equal(end.price, 99); assert.equal(end.vol, 900000); assert.equal(end.high, 104);
+  assert.throws(() => P.parseDay({ date: '2026-10-05', prev: 100, bars: [] }));
+});
+
+test('rekaman candle: simulasi mengikuti jalur asli, open dan close tepat', () => {
+  const D = P.parseDay(sampleDay());
+  const m = new P.Market({ code: 'SRSN', prev: D.prev, date: D.date, dow: 1 });
+  const sim = new P.Simulator(m, { seed: 3 });
+  const path = P.anchorPath(D);
+  assert.equal(path(P.H(8, 50)).auction, 100);
+  assert.equal(path(P.H(10)).auction, null);
+  assert.equal(path(P.H(15, 55)).auction, 99);
+  let at1003 = null;
+  while (m.phase !== 'CLOSED') {
+    sim.setAnchor(path(m.clock));
+    sim.step(0.5);
+    for (const t of m.drain().trades) assert.ok(t.price >= m.limits.arb && t.price <= m.limits.ara);
+    if (at1003 === null && m.clock >= P.H(10, 30)) at1003 = m.last;
+  }
+  assert.equal(m.open, 100);
+  assert.equal(m.close, 99);
+  // Antara 09:02 dan 11:59 harga asli turun pelan dari 104 ke 102; simulasi harus berada di sekitarnya.
+  assert.ok(Math.abs(at1003 - 103) <= 2, `harga 10:30 ${at1003}`);
+});
+
+test('rekaman candle: nama sumber dibersihkan sebelum tampil', () => {
+  const D = P.parseDay(Object.assign(sampleDay(), { src: '<img src=x onerror=alert(1)>Yahoo' }));
+  assert.ok(!/[<>=]/.test(D.src), D.src);
+});

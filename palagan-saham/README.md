@@ -9,7 +9,7 @@ Isinya:
 | Berkas | Isi |
 |---|---|
 | `index.html` | Halaman utama: medan 3D (Three.js), order book, running trade, ringkasan, kronik |
-| `engine.js` | Aturan BEI, order book prioritas harga-waktu, call auction, simulator pasar. Tanpa DOM, jalan di browser dan Node |
+| `engine.js` | Aturan BEI, order book prioritas harga-waktu, call auction, simulator pasar, pembaca rekaman candle. Tanpa DOM, jalan di browser dan Node |
 | `feed-server.js` | Contoh jembatan WebSocket untuk data live (bawaan: menyiarkan simulator) |
 | `test/engine.test.js` | Tes aturan dan simulasi (`npm test`) |
 
@@ -19,7 +19,9 @@ Isinya:
   (Indo Acidatama) dengan harga acuan Rp132, penutupan 2 Okt 2026 menurut hasil pencarian web. Kode dan harga acuan
   bisa diganti dengan mengeklik kode saham.
 - **Web:** versi ini juga ada di GitHub Pages repo ini: https://zenithxyz2512.github.io/halo/palagan-saham/
-  Di sana tombol **Live** memakai harga asli SRSN dari Google Sheets (lihat "Mode Live" di bawah).
+  Di sana tombol **Live** dan pilihan **tanggal** memakai harga asli SRSN yang direkam otomatis (lihat
+  "Mode Live dan rekaman" di bawah). Rekaman tanggal tertentu bisa dibuka langsung, misalnya
+  `?tanggal=2026-10-02&sesi=S2` (`sesi`: `PRE_OPEN`, `S1`, `S2`, `PRE_CLOSE`).
 - **Mode feed:** `npm install`, lalu `node feed-server.js`, lalu buka `index.html?feed=ws://localhost:8787`.
   Opsi: `--code BBCA --prev 7500 --speed 5 --scenario akumulasi --port 8787`.
 - **Tes:** `npm test`.
@@ -27,6 +29,9 @@ Isinya:
 Kontrol: seret untuk memutar, cubit/gulir untuk zoom, klik ganda untuk reset kamera, spasi untuk jeda.
 Pita waktu di bawah medan merekam keadaan tiap 5 detik waktu pasar: geser, gulir, atau klik grafik harga untuk
 melihat jam sebelumnya; tombolnya mundur/maju 1 menit, putar ulang, dan **Sekarang** untuk kembali.
+Di pita yang sama ada pilihan **tanggal** (hari ini, atau hari bursa sebelumnya yang sudah direkam) dan **sesi**
+(pre-open, sesi 1, sesi 2, pre-close): memilih sesi melompat ke awalnya dan memutarnya sampai sesi itu selesai.
+Di mode Simulasi, sesi yang belum tiba dicapai dengan memajukan simulasi. Kecepatan putar mengikuti tombol 1×–60×.
 Klik kode saham untuk ganti kode dan harga acuan.
 
 ## Dari Bitcoin ke BEI
@@ -63,18 +68,39 @@ cocok. Silakan cek ulang ke sumbernya sebelum dipakai untuk hal penting.
 
 Simulator mengikuti tanggal: ARB otomatis jadi simetris kalau tanggal simulasinya 2027 atau sesudahnya.
 
-## Mode Live (gratis, tertunda)
+## Mode Live dan rekaman (gratis, tertunda)
 
-Harga asli diambil dari fungsi `GOOGLEFINANCE` di Google Sheets, lalu halaman membacanya langsung dari browser
-lewat endpoint CSV Google Sheets (`/gviz/tq?tqx=out:csv`), yang mengizinkan akses dari situs lain (CORS).
-Tidak perlu server dan tidak perlu API key.
+Workflow **Rekam harga SRSN** (`.github/workflows/rekam-srsn.yml` di branch `main`) jalan tiap 10 menit pada
+jam bursa (Senin–Jumat 08:00–16:59 WIB). Ia mengambil candle dari API grafik Yahoo Finance (`SRSN.JK`) dan
+menyimpannya di branch `data-srsn`: satu file per hari bursa, candle 1 menit untuk 7 hari terakhir dan 5 menit untuk
+sekitar sebulan ke belakang. Formatnya dijelaskan di README branch itu. Halaman membacanya langsung dari
+`raw.githubusercontent.com` (boleh diakses dari situs lain), jadi tetap tanpa server dan tanpa API key.
 
-- **Yang asli:** harga terakhir, open, high, low, volume, harga acuan (penutupan kemarin), waktu transaksi terakhir.
-  Google menandai data BEI untuk SRSN tertunda 10 menit; halaman mengecek ulang tiap 2 menit.
-- **Yang tetap simulasi:** antrean bid/offer, tembakan HAKA/HAKI, running trade, tekanan 5 menit, tembok.
-  Simulator ditambatkan ke harga asli: pembuat pasar memasang kuotasi di sekitar harga itu, dan laju transaksinya
-  mengikuti pertambahan volume asli. Net asing, nilai, dan frekuensi tidak tersedia dari Google Finance.
-- **Di luar jam bursa** halaman menampilkan data terakhir dan tombol untuk mensimulasikan hari berikutnya.
+- **Live:** hari ini disusun ulang sejak 08:45 mengikuti candle yang sudah ada, lalu berlanjut di sekitar harga
+  terbaru sampai jam sekarang. Datanya tertunda sekitar 10 menit dari Yahoo, ditambah jeda workflow (tiap 10 menit,
+  kadang terlambat beberapa menit) dan cache GitHub. Halaman mengecek ulang tiap 2 menit dan menulis berapa menit
+  tertundanya.
+- **Tanggal sebelumnya:** seluruh hari disusun ulang oleh simulator yang ditambatkan ke candle: open pukul 09:00, lalu
+  tiap candle open → low/high → close, dengan laju transaksi dari volume candle. Lelang pembukaan dan penutupan
+  diarahkan ke open dan close asli. Pada 21 hari rekaman pertama, harga simulasi rata-rata berjarak 0,5 fraksi dari
+  close candle (90% dalam 1 fraksi), dan open serta close simulasinya sama persis dengan data asli. Rekaman memakai
+  benih acak per tanggal, jadi setiap kali diputar hasilnya sama.
+- **Yang asli:** harga, open, high, low, volume, harga acuan, dan peristiwa di kronik yang bertanda "asli" (open,
+  tertinggi/terendah baru, sentuh ARA/ARB, lonjakan volume, close).
+- **Yang tetap simulasi:** jalur harga di dalam satu candle, antrean bid/offer, tembakan HAKA/HAKI, running trade,
+  tekanan 5 menit, tembok. Net asing, nilai, dan frekuensi tidak tersedia dari Yahoo Finance.
+- **Di luar jam bursa** halaman menampilkan data terakhir, dengan tombol untuk memutar ulang hari itu atau
+  mensimulasikan hari berikutnya.
+- Saham lain bisa ikut direkam dengan menambah kodenya di `KODE` pada workflow. Halaman memakai rekaman kode yang
+  sedang dipilih kalau ada, kalau tidak SRSN.
+- Mematikan perekam: tab **Actions** → **Rekam harga SRSN** → **Disable workflow**.
+
+### Google Sheet sebagai cadangan
+
+Halaman juga membaca Google Sheet berisi `GOOGLEFINANCE` lewat endpoint CSV-nya (`/gviz/tq?tqx=out:csv`) dan
+memakai mana yang lebih baru. Pada 5 Okt 2026 terlihat bahwa sheet ini hanya segar selama pemiliknya sedang
+membukanya: dibaca lewat endpoint itu, lewat Drive, atau dibuka Chrome tanpa login, isinya tetap tertahan di
+transaksi 13:47:52 sampai lebih dari 25 menit kemudian. Karena itu sumber utamanya rekaman di atas.
 
 ### Membuat sheet sendiri
 
@@ -97,7 +123,7 @@ Tidak perlu server dan tidak perlu API key.
 3. Bagikan: Akses umum → Siapa saja yang memiliki link → Pelihat. Tanpa ini Google menjawab 401.
 4. Buka halaman dengan `?sheet=<ID sheet>` (ID adalah bagian URL di antara `/d/` dan `/edit`).
 
-Halaman memakai baris yang kodenya sama dengan kode yang sedang dipilih, atau SRSN, atau baris pertama.
+Halaman memakai baris yang kodenya sama dengan kode rekaman yang sedang dipakai (bawaan SRSN).
 
 ## Soal data live
 
@@ -112,10 +138,13 @@ Ini bagian yang menentukan apakah versi "beneran" bisa dibuat.
   [GOAPI](https://goapi.io/api-data-saham-indonesia/), mengklaim menyediakan data real-time termasuk order book.
   Belum dicoba di proyek ini; cek harga, cakupan, dan lisensi redistribusinya dulu.
 - Jangan scraping aplikasi sekuritas (Stockbit, dll.) tanpa izin: melanggar ketentuan layanan dan bisa diputus kapan saja.
-- Jalur gratis yang dipakai di sini adalah Google Sheets (lihat "Mode Live"): harga tertunda, tanpa antrean.
-- Sumber gratis seperti Yahoo Finance juga hanya memberi harga dan volume tertunda, tanpa antrean. Itu pun tidak bisa
-  dipakai otomatis: pada 5 Okt 2026, workflow GitHub Actions yang mencoba mengambil data per menit SRSN.JK ditolak
-  Yahoo dengan HTTP 429 (Too Many Requests), termasuk saat memakai cookie dan crumb.
+- Jalur gratis yang dipakai di sini adalah candle Yahoo Finance yang direkam GitHub Actions (lihat "Mode Live dan
+  rekaman"): harga dan volume tertunda, tanpa antrean. API grafik Yahoo tidak resmi dan tidak dijamin: pada 5 Okt 2026
+  permintaan dari Actions awalnya ditolak dengan HTTP 429, beberapa jam kemudian dijawab normal saat memakai
+  User-Agent peramban.
+  Kalau ditolak, workflow hanya mencatat peringatan di log dan mencoba lagi 10 menit kemudian.
+- Situs BEI (`idx.co.id`) dan Stooq menolak permintaan dari GitHub Actions dengan tantangan Cloudflare/JavaScript,
+  jadi tidak dipakai.
 
 Begitu punya akses feed, halaman ini tinggal disambungkan: tulis adaptor di blok `SUMBER` pada `feed-server.js`
 yang mengubah data vendor ke format di bawah. Halaman tidak perlu diubah.
@@ -162,6 +191,13 @@ Skenario: Normal, Akumulasi, Distribusi, Kejar ARA, Panik ARB, Gorengan. Semuany
 bukan tiruan saham tertentu dan bukan rekomendasi.
 
 ## Yang belum diverifikasi
+
+- Apakah Yahoo Finance terus menjawab permintaan dari GitHub Actions. Kalau berhenti, rekaman baru ikut berhenti dan
+  Live hanya mengandalkan Google Sheet.
+- Seberapa terlambat jadwal workflow GitHub di jam ramai, dan apakah GitHub menonaktifkan jadwalnya setelah 60 hari
+  tanpa aktivitas repo (aturan untuk repo publik; belum jelas apakah commit dari workflow sendiri dihitung).
+- Ketepatan data Yahoo dibanding data resmi BEI. Yang terlihat: open harian kadang selisih satu fraksi dari open
+  candle pertama, dan jumlah volume candle 1–10% lebih kecil dari volume harian.
 
 - Isi artikel sumber aturan (hanya ringkasan hasil pencarian yang terbaca).
 - Cara BEI membulatkan harga batas ARA/ARB yang tidak jatuh tepat di fraksi. Di sini ARA dibulatkan ke bawah dan
