@@ -6,7 +6,8 @@ name: Rekam harga SRSN
 # Tambah saham lain lewat KODE (pisahkan dengan spasi). Untuk mematikan: Actions → Rekam harga SRSN → Disable workflow.
 on:
   schedule:
-    - cron: '*/10 1-9 * * 1-5'   # 08:00–16:59 WIB, Senin–Jumat
+    # Menit 4, 14, …, 54: GitHub menyarankan menghindari awal jam karena antrean jadwal sedang ramai.
+    - cron: '4-59/10 1-9 * * 1-5'   # 08:04–16:54 WIB, Senin–Jumat
   workflow_dispatch:
 
 permissions:
