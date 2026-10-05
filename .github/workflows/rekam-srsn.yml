@@ -1,8 +1,9 @@
 name: Rekam harga SRSN
 
-# Tiap 10 menit pada jam bursa, baca Google Sheet berisi rumus GOOGLEFINANCE lalu simpan satu titik harga
-# per tanggal di branch data-srsn (SRSN/<tanggal>.json). Palagan Saham memakainya untuk memutar ulang hari sebelumnya.
-# Untuk mematikan: tab Actions → Rekam harga SRSN → Disable workflow.
+# Tiap 10 menit pada jam bursa, ambil candle harga dari Yahoo Finance (tertunda sekitar 10 menit) dan simpan
+# satu file per tanggal di branch data-srsn: SRSN/<tanggal>.json. Palagan Saham memakainya untuk mode Live
+# dan untuk memutar ulang hari-hari sebelumnya. Candle 1 menit tersedia untuk 7 hari terakhir, 5 menit untuk sebulan.
+# Tambah saham lain lewat KODE (pisahkan dengan spasi). Untuk mematikan: Actions → Rekam harga SRSN → Disable workflow.
 on:
   schedule:
     - cron: '*/10 1-9 * * 1-5'   # 08:00–16:59 WIB, Senin–Jumat
@@ -24,54 +25,82 @@ jobs:
         with:
           ref: data-srsn
 
-      - name: Ambil harga dari Google Sheets
+      - name: Ambil candle dari Yahoo Finance
         env:
-          SHEET_ID: 13HzYceK4HQpsFVIlyWvMLnrOhvCgMJFdcG0lINceCwE
+          KODE: SRSN
         run: |
           python3 - <<'PY'
-          import csv, io, json, os, urllib.request
+          import datetime as dt, json, os, urllib.error, urllib.request
 
-          url = f"https://docs.google.com/spreadsheets/d/{os.environ['SHEET_ID']}/gviz/tq?tqx=out:csv&gid=0&headers=1"
-          req = urllib.request.Request(url, headers={"User-Agent": "palagan-saham-rekam"})
-          text = urllib.request.urlopen(req, timeout=20).read().decode("utf-8")
-          if text.lstrip().startswith("<"):
-              raise SystemExit("Sheet tidak bisa dibaca publik: Google mengirim halaman HTML, bukan CSV")
+          WIB = dt.timezone(dt.timedelta(hours=7))
+          UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
 
-          def whole(x):
-              digits = "".join(ch for ch in x if ch.isdigit())
-              return int(digits) if digits else None
 
-          for row in list(csv.reader(io.StringIO(text)))[1:]:
-              if len(row) < 8:
-                  continue
-              code = row[0].strip().upper()
-              price, opening, high, low, volume, prev = (whole(row[i]) for i in (1, 2, 3, 4, 5, 6))
-              stamp = row[7].strip()
-              if len(code) != 4 or not code.isalpha() or not price or not prev or len(stamp) < 19:
-                  continue
-              date, clock = stamp[:10], stamp[11:19]
+          def chart(code, query):
+              url = f'https://query1.finance.yahoo.com/v8/finance/chart/{code}.JK?{query}'
+              req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'application/json'})
+              with urllib.request.urlopen(req, timeout=25) as res:
+                  return json.load(res)['chart']['result'][0]
+
+
+          def rows(result):
+              q = result['indicators']['quote'][0]
+              for i, t in enumerate(result.get('timestamp') or []):
+                  o, h, l, c, v = (q[k][i] for k in ('open', 'high', 'low', 'close', 'volume'))
+                  if None in (o, h, l, c):
+                      continue
+                  yield dt.datetime.fromtimestamp(t, WIB), round(o), round(h), round(l), round(c), int(v or 0)
+
+
+          def bars_by_day(result):
+              days = {}
+              for w, o, h, l, c, v in rows(result):
+                  days.setdefault(w.date().isoformat(), []).append([w.strftime('%H:%M'), o, h, l, c, v])
+              return days
+
+
+          def write_json(path, data):
+              text = json.dumps(data, separators=(',', ':'))
+              if os.path.exists(path) and open(path).read() == text:
+                  return False
+              with open(path, 'w') as f:
+                  f.write(text)
+              return True
+
+
+          def record(code):
+              daily = {w.date().isoformat(): [o, h, l, c, v] for w, o, h, l, c, v in rows(chart(code, 'interval=1d&range=3mo'))}
+              fine = bars_by_day(chart(code, 'interval=1m&range=7d'))
+              coarse = bars_by_day(chart(code, 'interval=5m&range=1mo'))
+              order = sorted(daily)
               os.makedirs(code, exist_ok=True)
-              path = f"{code}/{date}.json"
-              if os.path.exists(path):
-                  day = json.load(open(path))
-              else:
-                  day = {"code": code, "date": date, "prev": prev, "open": opening, "points": []}
-              points = day["points"]
-              point = [clock, price, high, low, volume]
-              if points and (points[-1] == point or points[-1][0] > clock):
-                  print(f"{code}: belum ada data baru (transaksi terakhir {clock})")
-                  continue
-              points.append(point)
-              day["prev"], day["open"] = prev, day.get("open") or opening
-              with open(path, "w") as f:
-                  json.dump(day, f, separators=(",", ":"))
-              index_path = f"{code}/index.json"
-              index = json.load(open(index_path)) if os.path.exists(index_path) else {"code": code, "dates": []}
-              if date not in index["dates"]:
-                  index["dates"] = sorted(index["dates"] + [date])
-                  with open(index_path, "w") as f:
-                      json.dump(index, f, separators=(",", ":"))
-              print(f"{code}: {date} {clock} harga {price}, volume {volume}")
+              changed = 0
+              for date in sorted(set(fine) | set(coarse)):
+                  step, bars = (60, fine[date]) if date in fine else (300, coarse[date])
+                  path = f'{code}/{date}.json'
+                  if step == 300 and os.path.exists(path) and json.load(open(path)).get('step') == 60:
+                      continue  # data 1 menit yang sudah tersimpan lebih rinci; jangan ditimpa data 5 menit
+                  i = order.index(date) if date in order else -1
+                  if i <= 0:
+                      print(f'{code} {date}: harga acuan tidak diketahui, dilewati')
+                      continue
+                  prev = daily[order[i - 1]][3]
+                  day = {'code': code, 'date': date, 'prev': prev, 'step': step, 'src': 'Yahoo Finance',
+                         'day': daily[date], 'bars': bars}
+                  if write_json(path, day):
+                      changed += 1
+                      print(f'{code} {date}: {len(bars)} candle {step // 60} menit, terakhir {bars[-1][0]} harga {bars[-1][4]}')
+              dates = sorted(f[:-5] for f in os.listdir(code) if f[:4].isdigit() and f.endswith('.json'))
+              write_json(f'{code}/index.json', {'code': code, 'dates': dates})
+              return changed
+
+
+          # Gagal sesekali tidak dianggap error supaya GitHub tidak mengirim email tiap 10 menit; cukup peringatan di log.
+          for code in os.environ.get('KODE', 'SRSN').split():
+              try:
+                  print(f'{code}: {record(code)} file berubah')
+              except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError, TypeError) as e:
+                  print(f'::warning::{code}: gagal mengambil data ({e})')
           PY
 
       - name: Simpan kalau ada data baru
@@ -80,5 +109,10 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           if git diff --cached --quiet; then echo 'Tidak ada perubahan'; exit 0; fi
-          git commit -m "Rekam harga $(TZ=Asia/Jakarta date +'%Y-%m-%d %H:%M') WIB"
-          git push
+          # Satu commit per hari bursa: rekaman berikutnya di hari yang sama menimpa commit itu supaya riwayat tidak membengkak.
+          msg="Rekam harga $(TZ=Asia/Jakarta date +%F)"
+          if [ "$(git log -1 --format=%s)" = "$msg" ] && [ "$(git log -1 --format=%an)" = 'github-actions[bot]' ]; then
+            git commit -q --amend -m "$msg" && git push --force-with-lease
+          else
+            git commit -q -m "$msg" && git push
+          fi
