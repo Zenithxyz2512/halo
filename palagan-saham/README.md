@@ -15,8 +15,10 @@ Isinya:
 
 ## Cara menjalankan
 
-- **Simulasi:** buka `index.html` (butuh internet untuk Three.js dari jsDelivr dan font Google). Bisa juga lewat
-  GitHub Pages: aktifkan Pages di repo, lalu buka `/palagan-saham/`.
+- **Simulasi:** buka `index.html` (butuh internet untuk Three.js dari jsDelivr dan font Google). Bawaannya SRSN
+  (Indo Acidatama) dengan harga acuan Rp132, penutupan 2 Okt 2026 menurut hasil pencarian web. Kode dan harga acuan
+  bisa diganti dengan mengeklik kode saham.
+- **Web:** versi ini juga ada di GitHub Pages repo ini: https://zenithxyz2512.github.io/halo/palagan-saham/
 - **Mode feed:** `npm install`, lalu `node feed-server.js`, lalu buka `index.html?feed=ws://localhost:8787`.
   Opsi: `--code BBCA --prev 7500 --speed 5 --scenario akumulasi --port 8787`.
 - **Tes:** `npm test`.
@@ -71,8 +73,9 @@ Ini bagian yang menentukan apakah versi "beneran" bisa dibuat.
   [GOAPI](https://goapi.io/api-data-saham-indonesia/), mengklaim menyediakan data real-time termasuk order book.
   Belum dicoba di proyek ini; cek harga, cakupan, dan lisensi redistribusinya dulu.
 - Jangan scraping aplikasi sekuritas (Stockbit, dll.) tanpa izin: melanggar ketentuan layanan dan bisa diputus kapan saja.
-- Sumber gratis yang umum seperti Yahoo Finance setahu saya hanya memberi harga dan volume tertunda tanpa antrean.
-  Belum dicek di sesi ini.
+- Sumber gratis seperti Yahoo Finance hanya memberi harga dan volume tertunda, tanpa antrean. Itu pun tidak bisa
+  dipakai otomatis: pada 5 Okt 2026, workflow GitHub Actions yang mencoba mengambil data per menit SRSN.JK ditolak
+  Yahoo dengan HTTP 429 (Too Many Requests), termasuk saat memakai cookie dan crumb.
 
 Begitu punya akses feed, halaman ini tinggal disambungkan: tulis adaptor di blok `SUMBER` pada `feed-server.js`
 yang mengubah data vendor ke format di bawah. Halaman tidak perlu diubah.

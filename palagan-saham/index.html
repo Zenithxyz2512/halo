@@ -85,6 +85,7 @@ button, input, select { font: inherit; color: inherit; }
 .code:hover { border-color: var(--brass); }
 .quote { display: flex; flex-direction: column; line-height: 1.02; min-width: 0; }
 .last { font-family: var(--font-display); font-size: 34px; letter-spacing: .02em; }
+.issuer { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .chg { font-weight: 700; font-size: 13px; }
 .up { color: var(--bull-ink); } .down { color: var(--bear-ink); } .flat { color: var(--muted); }
 .refs { display: grid; grid-template-columns: repeat(2, auto); gap: 1px 14px; margin: 0; }
@@ -318,8 +319,9 @@ tr.new { animation: flash 1.1s ease-out; }
       <small>Bid vs offer · IDX</small>
     </div>
     <div class="ticker">
-      <button class="code" id="code-btn" type="button" title="Ganti kode dan harga acuan">DEMO</button>
+      <button class="code" id="code-btn" type="button" title="Ganti kode dan harga acuan">SRSN</button>
       <div class="quote">
+        <span class="issuer" id="issuer" hidden></span>
         <span class="last" id="last">–</span>
         <span class="chg flat" id="chg">belum ada transaksi</span>
       </div>
@@ -432,7 +434,7 @@ tr.new { animation: flash 1.1s ease-out; }
     <span class="eyebrow">Cara baca</span>
     <h2 id="help-h">Order book jadi medan tempur</h2>
     <ul>
-      <li><b>Satu baris medan = satu fraksi harga.</b> Harga naik ke kanan. Batas fraksi BEI ikut dipakai, jadi di Rp5.000 jarak harganya pindah dari Rp10 ke Rp25.</li>
+      <li><b>Satu baris medan = satu fraksi harga.</b> Harga naik ke kanan. Batas fraksi BEI ikut dipakai: untuk SRSN di bawah Rp200 satu langkah = Rp1, di atas Rp200 jadi Rp2 (garis kuningan menandai batasnya).</li>
       <li><b>Bidak hijau bertanduk</b> berdiri di harga bid, sebanyak lot yang antre. <b>Bidak merah bertelinga</b> berdiri di harga offer. Skalanya di pojok kiri bawah.</li>
       <li><b>Garis depan</b> ada di antara bid dan offer terbaik. Bendera di belakang medan menunjukkan harga transaksi terakhir.</li>
       <li><b>Tembakan dari kiri = HAKA</b> (pembeli menghajar offer). <b>Dari kanan = HAKI</b> (penjual menghajar bid). Peluru besar berarti transaksi jumbo, kira-kira Rp500 juta ke atas sekali hajar.</li>
@@ -456,7 +458,7 @@ tr.new { animation: flash 1.1s ease-out; }
     <label for="f-prev">Harga acuan, yaitu penutupan hari sebelumnya (Rp)
       <input id="f-prev" name="prev" type="number" min="1" max="1000000" step="1" inputmode="numeric">
     </label>
-    <p class="fine" id="setup-msg">Kode hanya label. Harga berjalan dibangkitkan simulator dari harga acuan ini, bukan diambil dari pasar.</p>
+    <p class="fine" id="setup-msg">Kode hanya label. Harga berjalan dibangkitkan simulator dari harga acuan ini, bukan diambil dari pasar. Bawaan: SRSN, acuan Rp132 (penutupan 2 Okt 2026).</p>
     <div class="row">
       <button class="btn primary" type="submit">Mulai hari baru</button>
       <button class="btn" type="button" data-close>Batal</button>
@@ -509,13 +511,15 @@ tr.new { animation: flash 1.1s ease-out; }
 
   // --------------------------------------------- preferensi per penonton
   const store = {
-    get(k, d) { try { const v = localStorage.getItem('palagan:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('palagan:' + k, JSON.stringify(v)); } catch (e) { /* penyimpanan tidak tersedia */ } },
+    get(k, d) { try { const v = localStorage.getItem('palagan2:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('palagan2:' + k, JSON.stringify(v)); } catch (e) { /* penyimpanan tidak tersedia */ } },
   };
   const cleanCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  // Bawaan: SRSN (Indo Acidatama) dengan harga acuan penutupan 2 Okt 2026 (Rp132, dari hasil pencarian web).
+  const DEFAULT_CODE = 'SRSN', DEFAULT_PREV = 132;
   const cfg = {
-    code: cleanCode(store.get('code', 'DEMO')) || 'DEMO',
-    prev: P.floorTick(clamp(Math.round(+store.get('prev', 4850)) || 4850, 1, 1e6)),
+    code: cleanCode(store.get('code', DEFAULT_CODE)) || DEFAULT_CODE,
+    prev: P.floorTick(clamp(Math.round(+store.get('prev', DEFAULT_PREV)) || DEFAULT_PREV, 1, 1e6)),
     scenario: P.SCENARIOS[store.get('scenario', 'normal')] ? store.get('scenario', 'normal') : 'normal',
     speed: [1, 10, 30, 60].includes(store.get('speed', 10)) ? store.get('speed', 10) : 10,
   };
@@ -1142,10 +1146,10 @@ tr.new { animation: flash 1.1s ease-out; }
         if (bb) put(this.pill('BID ' + fp(bb.p), fLot(bb.lot) + ' lot', { fg: t.bullInk, bg: t.surface, border: t.bull }), 0.62, this.X(bb.p) - 0.35, 1.05, W / 2 - 0.5);
         if (bo) put(this.pill('OFFER ' + fp(bo.p), fLot(bo.lot) + ' lot', { fg: t.bearInk, bg: t.surface, border: t.bear }), 0.62, this.X(bo.p) + 0.35, 1.05, W / 2 - 0.5);
       }
-      const near = (this.wallList || []).sort((a, b) => Math.abs(a.x - this.fx) - Math.abs(b.x - this.fx)).slice(0, 4);
-      for (const w of near) {
-        put(this.pill('TEMBOK ' + fLot(w.st.lot), fp(w.st.p), { fg: t.ink, bg: t.surface, border: w.st.side === 'B' ? t.bull : t.bear }), 0.5, w.x, w.h + 0.55, -W / 2 + 0.9);
-      }
+      const near = (this.wallList || []).sort((a, b) => Math.abs(a.x - this.fx) - Math.abs(b.x - this.fx)).slice(0, 2);
+      near.forEach((w, k) => {
+        put(this.pill('TEMBOK ' + fLot(w.st.lot), fp(w.st.p), { fg: t.ink, bg: t.surface, border: w.st.side === 'B' ? t.bull : t.bear }), 0.5, w.x, w.h + 0.55 + k * 0.45, -W / 2 + 0.9);
+      });
       for (; i < this.tags.length; i++) this.tags[i].visible = false;
 
       const last = m.last != null ? m.last : m.prev;
@@ -1303,9 +1307,12 @@ tr.new { animation: flash 1.1s ease-out; }
     }
   }
 
+  const ISSUERS = { SRSN: 'Indo Acidatama Tbk' };
   function setStatic() {
     const m = market;
     setText(els.code, m.code);
+    $('issuer').hidden = !ISSUERS[m.code];
+    setText($('issuer'), ISSUERS[m.code] || '');
     setText(els.ref, fp(m.prev));
     setText(els.ara, fp(m.limits.ara) + (m.limits.araPct ? ` (+${m.limits.araPct}%)` : ''));
     setText(els.arb, fp(m.limits.arb) + (m.limits.arbPct ? ` (−${m.limits.arbPct}%)` : ''));
@@ -1610,7 +1617,7 @@ tr.new { animation: flash 1.1s ease-out; }
   els.code.addEventListener('click', () => {
     $('f-code').value = market ? market.code : cfg.code;
     $('f-prev').value = market ? market.prev : cfg.prev;
-    $('setup-msg').textContent = 'Kode hanya label. Harga berjalan dibangkitkan simulator dari harga acuan ini, bukan diambil dari pasar.';
+    $('setup-msg').textContent = 'Kode hanya label. Harga berjalan dibangkitkan simulator dari harga acuan ini, bukan diambil dari pasar. Bawaan: SRSN, acuan Rp132 (penutupan 2 Okt 2026).';
     openSheet('setup');
   });
   $('setup-form').addEventListener('submit', (e) => {
