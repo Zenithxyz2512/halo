@@ -70,15 +70,17 @@ Simulator mengikuti tanggal: ARB otomatis jadi simetris kalau tanggal simulasiny
 
 ## Mode Live dan rekaman (gratis, tertunda)
 
-Workflow **Rekam harga SRSN** (`.github/workflows/rekam-srsn.yml` di branch `main`) jalan tiap 10 menit pada
-jam bursa (Senin–Jumat 08:00–16:59 WIB). Ia mengambil candle dari API grafik Yahoo Finance (`SRSN.JK`) dan
+Workflow **Rekam harga SRSN** (`.github/workflows/rekam-srsn.yml` di branch `main`) dijadwalkan tiap 10 menit pada
+jam bursa (Senin–Jumat 08:04–16:54 WIB), tapi GitHub melewati sebagian besar run terjadwal: 5–9 Okt 2026 hanya terjadi
+9 run, kira-kira pukul 14:xx dan 21:xx WIB. Ia mengambil candle dari API grafik Yahoo Finance (`SRSN.JK`) dan
 menyimpannya di branch `data-srsn`: satu file per hari bursa, candle 1 menit untuk 7 hari terakhir dan 5 menit untuk
 sekitar sebulan ke belakang. Formatnya dijelaskan di README branch itu. Halaman membacanya langsung dari
 `raw.githubusercontent.com` (boleh diakses dari situs lain), jadi tetap tanpa server dan tanpa API key.
 
 - **Live:** hari ini disusun ulang sejak 08:45 mengikuti candle yang sudah ada, lalu berlanjut di sekitar harga
-  terbaru sampai jam sekarang. Datanya tertunda sekitar 10 menit dari Yahoo, ditambah jeda workflow (tiap 10 menit,
-  kadang terlambat beberapa menit) dan cache GitHub. Halaman mengecek ulang tiap 2 menit dan menulis berapa menit
+  terbaru sampai jam sekarang. Datanya tertunda sekitar 10 menit dari Yahoo, ditambah jarak antar-run workflow
+  (yang sebenarnya hanya beberapa kali sehari) dan cache GitHub. Sebelum rekaman hari itu masuk, halaman menulis
+  "menunggu data asli" dan medan disimulasikan di sekitar harga acuan (penutupan hari bursa terakhir). Halaman mengecek ulang tiap 2 menit dan menulis berapa menit
   tertundanya.
 - **Tanggal sebelumnya:** seluruh hari disusun ulang oleh simulator yang ditambatkan ke candle: open pukul 09:00, lalu
   tiap candle open → low/high → close, dengan laju transaksi dari volume candle. Lelang pembukaan dan penutupan
