@@ -519,7 +519,7 @@ tr.new { animation: flash 1.1s ease-out; }
       <li><b>Pre-opening dan pre-closing</b> = call auction. Kedua pasukan berbaur, lalu semua yang cocok dieksekusi di satu harga (IEP). Istirahat siang = gencatan senjata.</li>
       <li><b>Pita waktu</b> di bawah medan: geser untuk melihat keadaan di jam sebelumnya, tombol kiri dan kanan mundur atau maju 1 menit, tombol tengah memutar ulang dari titik itu, dan <b>Sekarang</b> kembali ke waktu terkini. Bisa juga gulir di atas pita atau klik grafik harga. Selama melihat masa lalu, simulasi menunggu; data live tetap berjalan.</li>
       <li><b>Tanggal</b> di pita waktu: pilih hari bursa sebelumnya untuk memutar ulang rekamannya. <b>Sesi</b>: lompat ke pre-opening, sesi 1, sesi 2, atau pre-closing; pemutaran berhenti saat sesi itu selesai. Kecepatan putar mengikuti tombol 1×–60×.</li>
-      <li><b>Live</b> dan <b>rekaman</b> memakai candle harga asli dari Yahoo Finance yang direkam tiap 10 menit (candle 1 menit untuk 7 hari terakhir, 5 menit untuk yang lebih lama), jadi tertunda sekitar 10–25 menit. Harga, open, high, low, dan volume asli; jalur di antara candle, antrean, tembakan, running trade, dan tekanan HAKA/HAKI tetap simulasi.</li>
+      <li><b>Live</b> dan <b>rekaman</b> memakai candle harga asli dari Yahoo Finance yang direkam otomatis oleh GitHub (candle 1 menit untuk 7 hari terakhir, 5 menit untuk yang lebih lama). Data bursa sendiri tertunda sekitar 10 menit, dan perekamnya sering jalan cuma beberapa kali sehari, jadi data hari ini bisa baru masuk sore hari. Harga, open, high, low, dan volume asli; jalur di antara candle, antrean, tembakan, running trade, dan tekanan HAKA/HAKI tetap simulasi.</li>
     </ul>
     <p class="fine">Mode <b>Simulasi</b>: kode saham cuma label, harganya dibangkitkan dari harga acuan yang kamu isi. Mode <b>Live</b> dan rekaman hanya jalan di versi web (GitHub Pages), bukan di pratinjau claude.ai. Yang asli adalah aturannya: lot 100 lembar, fraksi harga, ARA/ARB periode 28 Sep–31 Des 2026 (ARB 15%; mulai 2027 ARB sama dengan ARA), dan jadwal sesi BEI. Untuk data live perlu feed order book berlisensi; caranya ada di README proyek. Bukan rekomendasi jual-beli.</p>
     <p class="fine">Terinspirasi <a href="https://newhedge.io/bitcoin/battlefield" target="_blank" rel="noopener">Bitcoin Battlefield</a> dari Newhedge. Pintasan: <span class="kbd">Spasi</span> jeda, <span class="kbd">←</span><span class="kbd">→</span> putar, <span class="kbd">+</span><span class="kbd">−</span> zoom.</p>
@@ -1441,7 +1441,7 @@ tr.new { animation: flash 1.1s ease-out; }
       els.datainfo.hidden = false;
       els.datainfo.innerHTML = m.phase === 'PRE_OPEN'
         ? 'Pre-opening<small>Belum ada transaksi asli. Antrean lelang di medan: simulasi.</small>'
-        : 'Menunggu data asli hari ini<small>Candle masuk tertunda sekitar 10–25 menit. Sementara itu medan: simulasi di sekitar harga acuan.</small>';
+        : 'Menunggu data asli hari ini<small>Rekaman harga masuk beberapa kali sehari, jadi bisa baru muncul sore hari. Hari libur bursa tidak ada datanya. Sementara itu medan: simulasi di sekitar harga acuan.</small>';
     } else els.datainfo.hidden = true;
     if (P.isAuction(m.phase) && !realSrc) {
       const i = m.computeIEP();
@@ -2252,8 +2252,9 @@ tr.new { animation: flash 1.1s ease-out; }
     if (dow === 0 || dow === 6) return false;
     const ph = P.phaseAt(P.sessionPlan(dow), wibClock());
     if (ph === 'CLOSED') return false;
-    // Data tertunda: di awal sesi transaksi hari ini mungkin belum muncul.
-    return ph === 'PRE_OPEN' || q.date === isoOf(w) || wibClock() < P.H(9, 30);
+    // Jam bursa dihitung dari jam, bukan dari tanggal datanya: rekaman hari ini bisa baru masuk sore hari,
+    // dan sebelum itu halaman menunggu (lihat renderHeader) alih-alih mengaku pasar tutup.
+    return true;
   }
   const snapKey = (q) => `snaps:${q.code}:${q.date}`;
   function recordSnap(q) {
