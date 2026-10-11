@@ -1,0 +1,13 @@
+{
+  "name": "palagan-saham",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Medan tempur 3D antrean bid vs offer saham IDX",
+  "scripts": {
+    "test": "node --test",
+    "feed": "node feed-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
